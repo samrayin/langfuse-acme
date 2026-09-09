@@ -8,6 +8,7 @@ import {
   LifeBuoy,
   Radio,
   Calendar,
+  Mail,
 } from "lucide-react";
 import { SiDiscord, SiGithub } from "react-icons/si";
 import { RainbowButton } from "@/src/components/magicui/rainbow-button";
@@ -183,6 +184,15 @@ export function IntroSection({ onStartForm }: { onStartForm: () => void }) {
               Ask AI & Docs did not unblock you? Get help from and share
               feedback with the community.
             </p>
+            {/* ACME addition: direct support contact, shown ahead of the
+                community links. Not gated by any entitlement — this edits
+                the MIT-licensed component directly rather than using
+                Langfuse's own (EE-gated) supportHref customization. */}
+            <Button variant="outline" asChild>
+              <a href="mailto:anees.r@almoayyedcomputers.com">
+                <Mail className="mr-2 h-4 w-4" /> Contact ACME Support
+              </a>
+            </Button>
             <Button variant="outline" asChild>
               <a
                 href="https://langfuse.com/gh-support"
