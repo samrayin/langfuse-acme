@@ -53,6 +53,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { useSession } from "next-auth/react";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { AcmeChatWidget } from "@/src/features/acme-enhancements/components/AcmeChatWidget";
 
 const DISMISSED_SIDEBAR_NOTIFICATIONS_KEY = "dismissed-sidebar-notifications";
 
@@ -309,6 +310,9 @@ export function AuthenticatedLayout({
                       its launcher button) so the open window and its geometry
                       survive route changes. */}
                   <InAppAgentWindowHost />
+                  {typeof router.query.projectId === "string" ? (
+                    <AcmeChatWidget projectId={router.query.projectId} />
+                  ) : null}
                 </SidebarInset>
               </div>
               {hasFeaturePreviews ? (

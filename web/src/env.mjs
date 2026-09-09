@@ -46,6 +46,10 @@ export const env = createEnv({
     DATABASE_URL: z.url(),
     NODE_ENV: z.enum(["development", "test", "production"]),
     BUILD_ID: z.string().optional(),
+    // ACME addition: server-only key for the in-app ACME AI chat feature
+    // (web/src/features/acme-enhancements/server/acmeChatRouter.ts). Never
+    // exposed to the client — read only inside the tRPC mutation handler.
+    ANTHROPIC_API_KEY: z.string().optional(),
     NEXTAUTH_SECRET:
       process.env.NODE_ENV === "production"
         ? z.string().min(1)
@@ -700,6 +704,8 @@ export const env = createEnv({
    * middlewares) or client-side so we need to destruct manually.
    */
   runtimeEnv: {
+    // ACME addition
+    ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
     SEED_SECRET_KEY: process.env.SEED_SECRET_KEY,
     NEXT_PUBLIC_DEMO_PROJECT_ID: process.env.NEXT_PUBLIC_DEMO_PROJECT_ID,
     NEXT_PUBLIC_DEMO_ORG_ID: process.env.NEXT_PUBLIC_DEMO_ORG_ID,
