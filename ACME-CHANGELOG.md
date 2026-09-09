@@ -12,8 +12,15 @@ into an unrelated change), and gets an entry here in the same commit. See
 `langfuse-dev.aiatacme.com` (see `Azure Blueprint/ENVIRONMENT-STUDY.md` in the
 companion infrastructure project for the full deployment audit).
 
-**Status of this fork as a whole:** dev prototype. None of the changes below have been
-built into a deployed image yet — see "Deployment status" in each entry.
+**Status of this fork as a whole:** dev prototype. As of 2026-09-10, both container
+images (`acmelangfuseacr.azurecr.io/langfuse-web:acme-dev`,
+`acmelangfuseacr.azurecr.io/langfuse-worker:acme-dev`) are built and pushed to Azure
+Container Registry — see the "Custom image build" entry below for exact digests.
+**Not yet deployed to `langfuse-dev.aiatacme.com`** — that requires wiring the new
+images into the live Terraform config and running `terraform apply`, deliberately
+held for explicit review before touching the live cluster. See "Deployment status"
+in each entry below for what's actually running today (nothing, yet) vs. what's
+built and ready.
 
 ---
 
@@ -226,7 +233,7 @@ deployed — see build progress in this same session.
 
 **What:** No source change. Documenting a build-time-only workaround needed to get
 `langfuse-web:acme-dev` built on Azure Container Registry's default (Basic-tier)
-build agent: passing `--build-arg NEXT_IGNORE_BUILD_ERRORS=1` to `az acr build`.
+build agent: passing `--build-arg NEXT_IGNORE_BUILD_ERRORS=true` to `az acr build`.
 
 **Why:** The first successful-past-dependency-resolution build attempt (run `dt4`)
 compiled the Next.js app fine (`Compiled successfully in 3.3min`), then got killed
@@ -236,7 +243,16 @@ build agent is memory-constrained, and this monorepo's full type-check is heavy
 enough to exceed it. `web/Dockerfile` already had `NEXT_IGNORE_BUILD_ERRORS`
 wired in for exactly this class of problem (its own comment: "Allows the CI
 docker build smoke test to skip the Next.js type check that the lint job already
-runs") — using it here, verified live rather than assumed to be the right knob.
+runs"). Two live attempts, not one:
+- Attempt 1 passed `NEXT_IGNORE_BUILD_ERRORS=1`. Same OOM crash (run `dt5`) — the
+  build still ran the full TypeScript check and died at the same point.
+  `next.config.mjs` checks `process.env.NEXT_IGNORE_BUILD_ERRORS === "true"`, a
+  strict string comparison; `"1"` never matched it, so the flag silently had no
+  effect.
+- Attempt 2 passed the literal string `NEXT_IGNORE_BUILD_ERRORS=true`. Build
+  succeeded (run `dt6`, 15m31s) — confirms this Next.js version actually skips
+  running the type-checker when the flag is honored, not just suppresses errors
+  from it.
 
 **Tradeoff, explicitly:** this means `langfuse-web:acme-dev` is NOT verified
 type-clean by its own build — type errors would not fail this particular build.
@@ -247,7 +263,39 @@ step before building the image, which is exactly what Langfuse's own upstream CI
 already does per that Dockerfile comment.
 
 **Deployment status:** Applies only to how `langfuse-web:acme-dev` gets built,
-not to any source file. See the image-build entries above for overall status.
+not to any source file. See the "Custom image build" entry below for the
+resulting image's actual status.
+
+---
+
+## 2026-09-10 — Custom image build: both images pushed to ACR
+
+**What:** Both ACME-customized images successfully built (via `az acr build`,
+Cloud Shell, driven end-to-end through browser automation) and pushed to the
+`acmelangfuseacr` registry created for this purpose:
+
+| Image | Tag | Digest | Build time |
+|---|---|---|---|
+| `langfuse-web` | `acme-dev` | `sha256:04aa360eb6a75f842e8a62837233e9f84b2b4331bf7460ce9d423c83531d56e7` | 15m31s (run `dt6`) |
+| `langfuse-worker` | `acme-dev` | `sha256:31a417643c20a4e0393742176f5dbab83df56a798d26bd3d4050ceb3b1c68e47` | 8m19s (run `dt7`) |
+
+Both built from this repo's `HEAD` at the time of the build (commit `fcc197f` and
+earlier). The worker build hit one non-fatal issue worth noting: a native addon
+(`cpu-features`, an optional transitive dependency, likely pulled in by an SSH
+library) failed its `node-gyp` compile step (`Unable to detect compiler type` —
+the minimal Alpine runtime stage has no C compiler) but did not abort the overall
+install; the package degrades to a pure-JS fallback when its native build fails,
+which is its documented behavior. No action needed.
+
+**Why this matters:** This is the first point in the engagement where the ACME
+fork exists as a runnable artifact, not just source. `web/Dockerfile` and
+`worker/Dockerfile` changes (platform-flag fix, OOM workaround) and the
+`pnpm-lock.yaml` regeneration (above) were all required to get here.
+
+**Deployment status:** Images exist in ACR. **Not deployed** — `main.tf` in
+Cloud Shell has not been updated to reference them yet, and no `terraform plan`
+or `apply` has run. See "Outstanding, not yet done" below for the remaining
+steps to actually reach `langfuse-dev.aiatacme.com`.
 
 ---
 
