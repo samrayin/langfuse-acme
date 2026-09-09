@@ -222,6 +222,35 @@ deployed — see build progress in this same session.
 
 ---
 
+## 2026-09-10 — Build note: web image OOM-killed on ACR's default build agent
+
+**What:** No source change. Documenting a build-time-only workaround needed to get
+`langfuse-web:acme-dev` built on Azure Container Registry's default (Basic-tier)
+build agent: passing `--build-arg NEXT_IGNORE_BUILD_ERRORS=1` to `az acr build`.
+
+**Why:** The first successful-past-dependency-resolution build attempt (run `dt4`)
+compiled the Next.js app fine (`Compiled successfully in 3.3min`), then got killed
+(`exit 137` — SIGKILL, the classic OOM-kill signature) during the separate
+TypeScript type-checking pass that runs after compilation. ACR Tasks' default
+build agent is memory-constrained, and this monorepo's full type-check is heavy
+enough to exceed it. `web/Dockerfile` already had `NEXT_IGNORE_BUILD_ERRORS`
+wired in for exactly this class of problem (its own comment: "Allows the CI
+docker build smoke test to skip the Next.js type check that the lint job already
+runs") — using it here, verified live rather than assumed to be the right knob.
+
+**Tradeoff, explicitly:** this means `langfuse-web:acme-dev` is NOT verified
+type-clean by its own build — type errors would not fail this particular build.
+Acceptable for a dev-prototype image; **not** acceptable for a real release build
+without either (a) running on a build agent with more memory (e.g. a Premium-SKU
+ACR dedicated agent pool), or (b) running `pnpm run typecheck` as a separate CI
+step before building the image, which is exactly what Langfuse's own upstream CI
+already does per that Dockerfile comment.
+
+**Deployment status:** Applies only to how `langfuse-web:acme-dev` gets built,
+not to any source file. See the image-build entries above for overall status.
+
+---
+
 ## 2026-09-10 — Terraform module fork: image override support
 
 **What:** Vendored a patched copy of the upstream `langfuse/langfuse-terraform-azure`
