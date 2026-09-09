@@ -1,11 +1,11 @@
 # The node alpine image is available here: https://github.com/nodejs/docker-node
-FROM --platform=linux/amd64 node:24-alpine AS alpine
+FROM node:24-alpine AS alpine
 
 # It's important to update the index before installing packages to ensure you're getting the latest versions.
 # Check https://github.com/nodejs/docker-node/tree/b4117f9333da4138b03a546ec926ef50a31506c3#nodealpine to understand why libc6-compat might be needed.
 RUN apk update && apk upgrade --no-cache libcrypto3 libssl3 libc6-compat busybox ssl_client zlib
 
-FROM --platform=linux/amd64 alpine AS build-base
+FROM alpine AS build-base
 # Pin turbo to avoid nondeterministic prune output from future patch releases.
 RUN npm install turbo@2.10.5 --global
 ENV PNPM_HOME="/pnpm"
@@ -16,20 +16,20 @@ RUN npm install --global corepack@0.36.0 \
     && corepack enable \
     && corepack prepare pnpm@12.3.1 --activate
 
-FROM --platform=linux/amd64 alpine AS runtime-base
+FROM alpine AS runtime-base
 # package managers and build-only CLIs only increase exposure to CVEs -> remove them
 RUN rm -rf /usr/local/lib/node_modules/corepack /usr/local/lib/node_modules/npm \
             /root/.cache/node/corepack && \
     rm -f /usr/local/bin/corepack /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/yarn /usr/local/bin/yarnpkg
 
-FROM --platform=linux/amd64 build-base AS pruner
+FROM build-base AS pruner
 
 WORKDIR /app
 
 COPY . .
 RUN turbo prune --scope=worker --docker
 
-FROM --platform=linux/amd64 build-base AS builder
+FROM build-base AS builder
 
 WORKDIR /app
 
@@ -59,7 +59,7 @@ COPY --from=pruner /app/out/full/ .
 
 RUN turbo run build --filter=worker...
 
-FROM --platform=linux/amd64 builder AS prod-deps
+FROM builder AS prod-deps
 
 # previously we copied the --from=builder /app . (includes full node_modules etc)
 # we only need the prod + generated prisma client plus .prisma artifacts
@@ -75,7 +75,7 @@ RUN pnpm --filter worker deploy --prod /prod/worker && \
     cp -R "$builder_prisma_client_dir" "$deployed_prisma_client_dir" && \
     cp -R "$builder_prisma_runtime_dir" "$deployed_prisma_runtime_dir"
 
-FROM --platform=linux/amd64 runtime-base AS runner
+FROM runtime-base AS runner
 
 ARG TARGETPLATFORM
 ARG BUILDPLATFORM

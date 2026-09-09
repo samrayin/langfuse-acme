@@ -158,31 +158,34 @@ error during its own test; this in-app version has not been separately smoke-tes
 
 ---
 
-## 2026-09-09 — Build fix: ACR-compatible Dockerfile platform pins
+## 2026-09-09/10 — Build fix: strip `--platform` from Dockerfile FROM lines for ACR builds
 
-**What:** Replaced `--platform=${TARGETPLATFORM:-linux/amd64}` (and one
-`--platform=${BUILDPLATFORM}`) with a hardcoded `--platform=linux/amd64` on every
-`FROM` line in both `web/Dockerfile` and `worker/Dockerfile`.
+**What:** Removed the `--platform=...` flag entirely from every `FROM` line in both
+`web/Dockerfile` and `worker/Dockerfile` (7 stages each).
 
 **Files:**
 - `web/Dockerfile`
 - `worker/Dockerfile`
 
-**Why this approach:** Not an ACME feature — a build-tooling compatibility fix
-discovered while running the first `az acr build` against this fork. Upstream
-Langfuse's Dockerfiles use BuildKit's `${VAR:-default}` shell-style default
-substitution in `--platform`, which real BuildKit (e.g. local `docker buildx build`)
-handles fine, but Azure Container Registry Tasks' own pre-build "scan for
-dependencies" step uses a narrower Dockerfile parser that cannot evaluate that
-syntax and aborts the entire build (`unable to understand line FROM
---platform=${TARGETPLATFORM:-linux/amd64} ...`, `failed to scan dependencies: exit
-status 1`) before the actual build engine ever runs. Since this fork's build target
-is AKS on standard amd64 node pools, hardcoding `linux/amd64` is a correct,
-zero-risk fix for this deployment — it only becomes a real limitation if ACME ever
-needs to cross-build for a different architecture (e.g. ARM64 nodes), at which
-point this would need revisiting (e.g. building per-arch via separate `az acr
-build --platform` invocations instead of relying on Dockerfile-level `TARGETPLATFORM`
-substitution).
+**Why this approach:** Not an ACME feature — a build-tooling compatibility fix,
+discovered and corrected across two `az acr build` attempts. Upstream Langfuse's
+Dockerfiles pin every stage with `FROM --platform=${TARGETPLATFORM:-linux/amd64} ...`
+(BuildKit's shell-style default-value substitution). Azure Container Registry
+Tasks' pre-build "scan for dependencies" step uses a narrower Dockerfile parser
+than real BuildKit and aborts the whole build before the build engine ever runs:
+- Attempt 1 hardcoded the value (`--platform=linux/amd64`), assuming the `${VAR:-default}`
+  substitution syntax specifically was the problem. Build still failed at the same
+  step (`unable to understand line FROM --platform=linux/amd64 ...`,
+  `failed to scan dependencies: exit status 1`) — ACR's scanner doesn't recognize the
+  `--platform` flag on `FROM` at all, regardless of its value.
+- Attempt 2 (this fix) removes the flag entirely. ACR build agents are themselves
+  linux/amd64, and this fork's only deployment target is AKS on standard amd64 node
+  pools, so omitting `--platform` (Docker then defaults to the build machine's own
+  platform) is a correct, zero-risk fix for this deployment. It would need revisiting
+  only if ACME ever needs to cross-build for a different architecture (e.g. ARM64
+  nodes) — at which point per-arch builds via separate `az acr build --platform`
+  invocations would be the right mechanism, not Dockerfile-level `TARGETPLATFORM`
+  substitution (which ACR's scanner can't consume either way).
 
 **Deployment status:** Source-only until the resulting images are actually built and
 deployed — see build progress in this same session.
