@@ -328,13 +328,64 @@ back pending explicit review before touching the live cluster, per
 
 ---
 
+## 2026-09-10 — Handoff: exact steps to deploy the built images
+
+**Status:** Both images are built and in ACR (see "Custom image build" above).
+`~/main.tf` in Cloud Shell already has a backup at `~/main.tf.bak-pre-acme-images`.
+Editing `main.tf` and running `terraform apply` were deliberately left for manual
+execution rather than done autonomously — this touches the live cluster and
+deserves a human at the keyboard, not an overnight unattended change.
+
+**Exact commands to run in Cloud Shell**, in order:
+
+1. Point the module at this fork (replaces the pinned upstream commit ref):
+   ```bash
+   sed -i 's|source = "github.com/langfuse/langfuse-terraform-azure?ref=e939144c0a70dcc3de32f321ace86d34ee0d80c9"|source = "git::https://github.com/samrayin/langfuse-acme.git//infra/langfuse-terraform-azure?ref=main"|' ~/main.tf
+   ```
+2. Add the four new image-override arguments inside the existing `module "langfuse" { ... }` block in `~/main.tf` (anywhere inside the block, e.g. right after the `app_version = "4.17.0"` line):
+   ```hcl
+   web_image_repository    = "acmelangfuseacr.azurecr.io/langfuse-web"
+   web_image_tag            = "acme-dev"
+   worker_image_repository = "acmelangfuseacr.azurecr.io/langfuse-worker"
+   worker_image_tag         = "acme-dev"
+   ```
+3. Re-initialize (the module source changed) and review the plan:
+   ```bash
+   cd ~ && terraform init -upgrade && terraform plan
+   ```
+4. Read the plan output carefully — it should show only the `helm_release.langfuse`
+   resource changing (new `web.image`/`worker.image` values in its `values`), no
+   resources being destroyed/recreated. If that looks right:
+   ```bash
+   terraform apply
+   ```
+5. After apply, verify the rollout:
+   ```bash
+   kubectl -n langfuse get pods -w
+   kubectl -n langfuse get deployment langfuse-web -o jsonpath='{.spec.template.spec.containers[0].image}'
+   kubectl -n langfuse get deployment langfuse-worker -o jsonpath='{.spec.template.spec.containers[0].image}'
+   ```
+   Then smoke-test `https://langfuse-dev.aiatacme.com` directly — logo, Contact
+   Support button, ACME Enhancements → Audit Logs, and the ACME AI chat widget
+   (needs `ANTHROPIC_API_KEY` — see the "Outstanding" section below, not yet set
+   on the live deployment).
+
+**If the plan shows anything unexpected** (resource replacement, unrelated
+changes) — stop and investigate before applying. `main.tf.bak-pre-acme-images` is
+there to revert from if needed.
+
+---
+
 ## Outstanding, not yet done
 
-- **Custom image build & deployment** — none of the above reaches
-  `langfuse-dev.aiatacme.com` until built into a custom Docker image and deployed. The
-  Terraform module (`langfuse-terraform-azure`) has no image-override variable today —
-  forking it (adding an `image_repository`/`image_tag`-style passthrough) is required
-  and not yet done.
+- **Deployment to the live cluster** — images are built and pushed, the Terraform
+  module fork with image-override support exists, but `main.tf` in Cloud Shell has
+  not been updated to reference the new images and no `terraform plan`/`apply` has
+  run. See the "Handoff" entry above for the exact remaining commands.
+- **`ANTHROPIC_API_KEY` not set on the live deployment** — required for the ACME AI
+  chat widget to actually respond; needs to be added as a Kubernetes secret and
+  wired into the Helm values (same pattern as the other secrets in
+  `kubernetes_secret.langfuse`) before or as part of the deployment above.
 - **Contact button target** — placeholder personal email, needs a real support channel
   before production.
 - **ACME AI end-to-end test** — backend/frontend built and internally consistent, not
