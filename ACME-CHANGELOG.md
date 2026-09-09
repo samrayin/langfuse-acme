@@ -192,6 +192,36 @@ deployed — see build progress in this same session.
 
 ---
 
+## 2026-09-10 — Build fix: regenerate lockfile, pin anthropic-ai/sdk to a mature version
+
+**What:** Regenerated `pnpm-lock.yaml` (previously never updated after `@anthropic-ai/sdk`
+was added to `web/package.json` during the ACME AI chat work) and changed the
+dependency's version range from `^0.124.0` to `^0.123.0`.
+
+**Files:**
+- `pnpm-lock.yaml`
+- `web/package.json`
+
+**Why this approach:** Two separate real build failures, both discovered live
+running `az acr build`, not assumed:
+1. `pnpm install --frozen-lockfile` (what the Dockerfile runs) failed outright —
+   `pnpm-lock.yaml` didn't match `web/package.json`'s `@anthropic-ai/sdk` addition.
+   The lockfile was never regenerated when that dependency was added earlier in
+   this engagement. Fixed by running `pnpm install --no-frozen-lockfile` to bring
+   the lockfile back in sync.
+2. That regeneration then hit this workspace's own `minimumReleaseAge: 7200`
+   (5-day) supply-chain policy (`pnpm-workspace.yaml`) — `^0.124.0` resolves to
+   `0.124.0`, published only days earlier, inside the maturity window. Rather than
+   wait out the window or add a `minimumReleaseAgeExclude` bypass (a real security
+   control this fork should not weaken), pinned to `^0.123.0` — the next version
+   down, published 2026-09-01 and already clear of the window at the time of this
+   fix.
+
+**Deployment status:** Source-only until the resulting images are actually built and
+deployed — see build progress in this same session.
+
+---
+
 ## Outstanding, not yet done
 
 - **Custom image build & deployment** — none of the above reaches
