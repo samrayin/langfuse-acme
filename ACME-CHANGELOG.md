@@ -222,6 +222,35 @@ deployed — see build progress in this same session.
 
 ---
 
+## 2026-09-10 — Terraform module fork: image override support
+
+**What:** Vendored a patched copy of the upstream `langfuse/langfuse-terraform-azure`
+module (pinned at tag `0.4.5`, matching what's live) into this repo at
+`infra/langfuse-terraform-azure/`, adding four new optional variables
+(`web_image_repository`, `web_image_tag`, `worker_image_repository`,
+`worker_image_tag`) that pass through to the Helm release's `web.image`/
+`worker.image` values — all `null` by default, so existing behavior is unchanged
+unless explicitly set.
+
+**Files:**
+- `infra/langfuse-terraform-azure/variables.tf`
+- `infra/langfuse-terraform-azure/langfuse.tf`
+- `infra/langfuse-terraform-azure/ACME-FORK-README.md` (full rationale)
+
+**Why this approach:** The underlying Helm chart (`2.0.2`, live) already supports
+per-component image overrides; the Terraform module wrapper (`0.4.5`) simply never
+exposed them as variables. This is the minimal additive patch needed to let
+Terraform manage a custom ACME image instead of requiring an out-of-band `kubectl`
+patch (the same drift risk already documented for the logo ConfigMap incident
+above). See `ACME-FORK-README.md` for the full diff description.
+
+**Deployment status:** Source-only. Not yet referenced by the live `main.tf` in
+Cloud Shell, no `terraform plan`/`apply` run against it yet — deliberately held
+back pending explicit review before touching the live cluster, per
+`CONTRIBUTING-ACME.md`'s infra-change discipline.
+
+---
+
 ## Outstanding, not yet done
 
 - **Custom image build & deployment** — none of the above reaches
