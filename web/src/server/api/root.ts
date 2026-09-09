@@ -43,6 +43,7 @@ import { experimentsRouter } from "@/src/features/experiments/server/router";
 import { mediaRouter } from "@/src/server/api/routers/media";
 import { backgroundMigrationsRouter } from "@/src/features/background-migrations/server/background-migrations-router";
 import { auditLogsRouter } from "./routers/auditLogs";
+import { acmeAuditLogsRouter } from "@/src/features/acme-enhancements/server/acmeAuditLogsRouter";
 import { tableRouter } from "@/src/features/table/server/tableRouter";
 import { batchActionRouter } from "@/src/features/batch-actions/server/batchActionRouter";
 import { cloudStatusRouter } from "@/src/features/cloud-status-notification/server/cloud-status-router";
@@ -115,6 +116,7 @@ export const appRouter = createTRPCRouter({
   media: mediaRouter,
   backgroundMigrations: backgroundMigrationsRouter,
   auditLogs: auditLogsRouter,
+  acmeAuditLogs: acmeAuditLogsRouter,
   table: tableRouter,
   batchAction: batchActionRouter,
   cloudStatus: cloudStatusRouter,

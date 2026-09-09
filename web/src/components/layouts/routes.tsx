@@ -20,6 +20,7 @@ import {
   ClipboardPen,
   Clock,
   Beaker,
+  ShieldCheck,
 } from "lucide-react";
 import { type ReactNode } from "react";
 import { type Entitlement } from "@/src/features/entitlements/constants/entitlements";
@@ -45,6 +46,7 @@ export enum RouteGroup {
   Observability = "Observability",
   PromptManagement = "Prompt Management",
   Evaluation = "Evaluation",
+  AcmeEnhancements = "ACME Enhancements",
 }
 
 export type Route = {
@@ -204,6 +206,18 @@ export const ROUTES: Route[] = [
     section: RouteSection.Main,
   },
   {
+    // ACME addition: read-only audit log viewer, no Enterprise entitlement
+    // required — see acmeAuditLogsRouter.ts for why this is a separate
+    // route/router rather than reusing Langfuse's own (EE-licensed,
+    // entitlement-gated) audit log viewer.
+    title: "Audit Logs",
+    pathname: `/project/[projectId]/acme-enhancements/audit-logs`,
+    icon: ShieldCheck,
+    projectRbacScopes: ["auditLogs:read"],
+    group: RouteGroup.AcmeEnhancements,
+    section: RouteSection.Main,
+  },
+  {
     // Keep Action required first in the secondary nav so it is not sandwiched
     // between regular items like Upgrade Plan and Settings.
     title: "Update",
@@ -232,7 +246,7 @@ export const ROUTES: Route[] = [
     menuNode: <V4SidebarToggle />,
   },
   {
-    title: "Upgrade Plan",
+    title: "Upgrade",
     icon: Sparkle,
     pathname: "/project/[projectId]/settings/billing",
     section: RouteSection.Secondary,
@@ -241,7 +255,7 @@ export const ROUTES: Route[] = [
     show: ({ organization }) => organization?.plan === "cloud:hobby",
   },
   {
-    title: "Upgrade Plan",
+    title: "Upgrade",
     icon: Sparkle,
     pathname: "/organization/[organizationId]/settings/billing",
     section: RouteSection.Secondary,
