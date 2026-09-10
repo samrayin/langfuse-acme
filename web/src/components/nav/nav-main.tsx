@@ -1,6 +1,6 @@
 /* eslint-disable @repo/no-margin-on-root-elements */
 "use client";
-import { type LucideIcon } from "lucide-react";
+import { ChevronRight, type LucideIcon } from "lucide-react";
 import {
   SidebarGroup,
   SidebarGroupContent,
@@ -9,9 +9,17 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/src/components/ui/sidebar";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/src/components/ui/collapsible";
 import Link from "next/link";
 import { type ReactNode } from "react";
 import { type RouteGroup } from "@/src/components/layouts/routes";
+import useLocalStorage from "@/src/components/useLocalStorage";
+
+const COLLAPSED_GROUPS_STORAGE_KEY = "sidebarCollapsedGroups";
 
 export type NavMainItem = {
   title: string;
@@ -55,6 +63,12 @@ export function NavMain({
     ungrouped: NavMainItem[];
   };
 }) {
+  // Keyed by group name; a group missing from the map is expanded by default.
+  // Persisted so the layout a user settles on survives navigation and reloads.
+  const [collapsedGroups, setCollapsedGroups] = useLocalStorage<
+    Record<string, boolean>
+  >(COLLAPSED_GROUPS_STORAGE_KEY, {});
+
   return (
     <>
       <SidebarGroup>
@@ -82,33 +96,57 @@ export function NavMain({
         </SidebarGroupContent>
       </SidebarGroup>
       {items.grouped &&
-        Object.entries(items.grouped).map(([group, items]) => (
-          <SidebarGroup key={group}>
-            <SidebarGroupLabel>{group}</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {items.map((item) => (
-                  <SidebarMenuItem key={item.title}>
-                    {item.menuNode || (
-                      <SidebarMenuButton
-                        asChild
-                        tooltip={item.title}
-                        isActive={item.isActive}
-                      >
-                        <Link
-                          href={item.url}
-                          target={item.newTab ? "_blank" : undefined}
-                        >
-                          <NavItemContent item={item} />
-                        </Link>
-                      </SidebarMenuButton>
-                    )}
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        ))}
+        Object.entries(items.grouped).map(([group, items]) => {
+          // A group containing the active page always renders expanded, even
+          // if the user previously collapsed it — hiding the current page's
+          // own nav entry would be confusing.
+          const hasActiveItem = items.some((item) => item.isActive);
+          const isOpen = hasActiveItem || !collapsedGroups[group];
+
+          return (
+            <Collapsible
+              key={group}
+              open={isOpen}
+              onOpenChange={(open) =>
+                setCollapsedGroups((prev) => ({ ...prev, [group]: !open }))
+              }
+              className="group/collapsible"
+            >
+              <SidebarGroup>
+                <CollapsibleTrigger asChild>
+                  <SidebarGroupLabel className="cursor-pointer hover:text-sidebar-foreground">
+                    {group}
+                    <ChevronRight className="ml-auto size-3.5 shrink-0 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                  </SidebarGroupLabel>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <SidebarGroupContent>
+                    <SidebarMenu>
+                      {items.map((item) => (
+                        <SidebarMenuItem key={item.title}>
+                          {item.menuNode || (
+                            <SidebarMenuButton
+                              asChild
+                              tooltip={item.title}
+                              isActive={item.isActive}
+                            >
+                              <Link
+                                href={item.url}
+                                target={item.newTab ? "_blank" : undefined}
+                              >
+                                <NavItemContent item={item} />
+                              </Link>
+                            </SidebarMenuButton>
+                          )}
+                        </SidebarMenuItem>
+                      ))}
+                    </SidebarMenu>
+                  </SidebarGroupContent>
+                </CollapsibleContent>
+              </SidebarGroup>
+            </Collapsible>
+          );
+        })}
     </>
   );
 }
