@@ -213,7 +213,7 @@ export const ROUTES: Route[] = [
     title: "Audit Logs",
     pathname: `/project/[projectId]/acme-enhancements/audit-logs`,
     icon: ShieldCheck,
-    projectRbacScopes: ["auditLogs:read"],
+    projectRbacScopes: ["projectAuditLogs:read"],
     group: RouteGroup.AcmeEnhancements,
     section: RouteSection.Main,
   },

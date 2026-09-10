@@ -14,9 +14,10 @@
  *
  * This file re-implements the same read query directly against the
  * already-ungated data, in an MIT-licensed location, with normal project
- * RBAC (`auditLogs:read` — the same permission scope the licensed UI uses,
- * which is just an access-control string, not EE-licensed code) instead of
- * the entitlement check. No write path — this is intentionally read-only.
+ * RBAC (`projectAuditLogs:read` — the same permission scope the licensed UI
+ * uses, which is just an access-control string, not EE-licensed code)
+ * instead of the entitlement check. No write path — this is intentionally
+ * read-only.
  */
 import { z } from "zod";
 import { createTRPCRouter, protectedProjectProcedure } from "@/src/server/api/trpc";
@@ -85,7 +86,7 @@ export const acmeAuditLogsRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "auditLogs:read",
+        scope: "projectAuditLogs:read",
       });
 
       const [auditLogs, totalCount] = await Promise.all([

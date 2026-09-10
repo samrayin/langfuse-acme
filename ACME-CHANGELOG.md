@@ -615,6 +615,40 @@ including the Redis fix below.
 
 ---
 
+## Fix: Audit Logs nav item invisible after v4.33.0 upgrade
+
+**What:** `web/src/components/layouts/routes.tsx` and
+`acmeAuditLogsRouter.ts` both still referenced the RBAC scope
+`auditLogs:read`, which upstream renamed to `projectAuditLogs:read`
+somewhere between v4.17.0 and v4.33.0 (see
+`packages/shared/src/features/rbac/projectAccessRights.ts` — no scope by
+the old name exists any more). Since a nav item's `projectRbacScopes` only
+matches a user's actual granted scopes, a scope name that doesn't exist
+matches nobody — the Audit Logs section silently disappeared for every
+role, including Owner.
+
+**Why this slipped through the v4.33.0 rebuild:** `AcmeAuditLogsTable.tsx`'s
+broken imports (see "Upgrade to v4.33.0" above) were caught by Turbopack at
+build time because they're genuine module-resolution errors. This wasn't —
+`"auditLogs:read"` is a syntactically valid string, just not a member of the
+`ProjectScope` union any more, and the ACR build runs with
+`NEXT_IGNORE_BUILD_ERRORS=true` (type-checking skipped, see the OOM
+workaround entry above), so the TypeScript error this would normally raise
+never got the chance to fail the build.
+
+**Bonus, not a separate task:** `projectAuditLogs:read` is granted only to
+the `OWNER` and `ADMIN` roles in Langfuse's own RBAC map (unchanged upstream
+behavior) — so fixing the scope name also gives Audit Logs the
+owner/admin-only visibility ACME wants, with no additional customization.
+
+**Files:**
+- `web/src/components/layouts/routes.tsx`
+- `web/src/features/acme-enhancements/server/acmeAuditLogsRouter.ts`
+
+**Deployment status:** Source-only until rebuilt/redeployed.
+
+---
+
 ## Redis Cluster compatibility fix
 
 **What:** `REDIS_CLUSTER_ENABLED=false` (explicit) and
