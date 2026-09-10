@@ -1,1 +1,11 @@
 .github/workflows/*.lock.yml linguist-generated=true
+
+# ACME: force LF line endings for shell scripts and Dockerfiles regardless of
+# the checkout platform's core.autocrlf setting. Without this, `git archive
+# --format=zip` on Windows silently converts these to CRLF, which breaks their
+# shebang lines when executed inside a Linux container (confirmed live:
+# "[dumb-init] ./web/entrypoint.sh: No such file or directory" was actually a
+# CRLF-corrupted "#!/bin/sh\r" shebang, not a missing file).
+*.sh text eol=lf
+Dockerfile text eol=lf
+*.dockerfile text eol=lf
