@@ -550,30 +550,80 @@ code, to land on exact HSL values without a rebuild per iteration.
 - `web/src/components/design-system/LangfuseLogo/LangfuseLogo.tsx`
 - `web/src/components/nav/topbar-brand.tsx`
 
-**Deployment status:** Not yet built/deployed — needs a web image rebuild.
+**Deployment status:** Live. Built via `az acr build` (run `dta`, 17m32s — hit a
+known Windows Azure CLI bug streaming the log, `UnicodeEncodeError` on a Turbo
+banner character; unrelated to the actual remote build, worked around by polling
+`az acr task list-runs` instead of `az acr task logs`), deployed via
+`kubectl rollout restart deployment/langfuse-web` (image tag unchanged at
+`acme-dev`, only the digest changed, so a restart was needed to force the
+`imagePullPolicy: Always` re-pull — a plain `helm upgrade --reuse-values` would
+have been a no-op). Verified live on `langfuse-dev.aiatacme.com` in both themes.
+
+---
+
+## Backup & restore: remote Terraform state
+
+**What:** Terraform state moved off Cloud Shell's local disk permanently, closing
+the gap that caused tonight's two incidents (see "Cloud Shell storage mount
+reliability" below). New resources, created directly via `az` CLI (bootstrap
+infrastructure — deliberately outside anything Terraform itself manages, so it
+can't be lost to a `terraform destroy` or accidentally reconciled away):
+
+- Resource group `rg-langfuse-tfstate` (swedencentral) — separate from
+  `rg-langfuse` so deleting the main resource group can't take state with it
+- Storage account `stacmelftfstate` — GRS replication, TLS 1.2 minimum, no public
+  blob access, blob versioning **and** 30-day soft delete both enabled
+- Blob container `tfstate`, holding `langfuse.tfstate`
+
+The root Terraform config that was previously only ever in Cloud Shell's `$HOME`
+(and lost with it, twice) is now committed at `deploy/azure/` — `versions.tf`
+(provider requirements + the `backend "azurerm"` block, authenticated via Azure AD
+rather than a storage account key), `providers.tf`, and `main.tf` (the actual
+`module "langfuse"` call, pinned to the values that match the live environment).
+See `deploy/azure/README.md` for the one manual step required per operator.
+
+**Why this approach:** Azure AD auth (`use_azuread_auth = true` in the backend
+block) instead of a shared storage account key — no long-lived secret to leak or
+rotate, access is just an RBAC role grant, revocable the same way as any other
+permission. The role grant itself (`Storage Blob Data Contributor` on the new
+storage account) was blocked by Claude Code's auto-mode safety classifier —
+consistent with the AcrPull grant earlier tonight — so it's documented as a
+one-time manual command in `deploy/azure/README.md` rather than attempted via a
+workaround.
+
+**Not done yet:** The backend is live and **empty** — the ~65 real resources in
+`rg-langfuse` are not yet reconciled into it. `terraform plan` against
+`deploy/azure/` right now would want to create everything from scratch. Do not
+`apply` until the `import` block reconciliation (next step) is complete and
+`terraform plan` shows zero diff.
+
+**Files:**
+- `deploy/azure/versions.tf`, `providers.tf`, `main.tf`, `README.md`
+
+**Deployment status:** Remote state backend live; root config committed; state
+reconciliation not started.
 
 ---
 
 ## Outstanding, not yet done
 
-- **Terraform doesn't manage the live image configuration.** The deployment above
-  was done via direct `helm upgrade`, not `terraform apply`, because Cloud Shell's
-  local Terraform state was unavailable at the time (see the "Live deployment"
-  entry above). To close this gap: recover or rebuild Terraform state (either
-  `terraform import` each of the ~30 resources in `rg-langfuse`, or — better,
-  long-term — migrate to a remote backend, e.g. an Azure Storage blob container, so
-  this can't recur), update `main.tf` per the module fork's `web_image_*`/
-  `worker_image_*` variables (using the corrected `langfuse.web.image.*` /
-  `langfuse.worker.image.*` paths, now fixed in the fork), and confirm
-  `terraform plan` shows zero diff against what's actually running (it should,
-  since the live Helm values already match what Terraform would set).
+- **Terraform doesn't manage the live image configuration yet.** The remote state
+  backend and root config now exist (see "Backup & restore: remote Terraform state"
+  below), but the ~65 live resources in `rg-langfuse` are not yet reconciled into
+  that state via `import` blocks. Until that's done, `terraform plan` against
+  `deploy/azure/` will want to create everything from scratch — do not `apply`.
+  Once reconciled, confirm `terraform plan` shows zero diff against what's actually
+  running (it should, since the live Helm values already match what the config in
+  `deploy/azure/main.tf` sets).
 - **Cloud Shell storage mount reliability.** The `$HOME` mount failed at least
   twice in one session (once losing all local files, once again on a later
-  reconnect). Worth a closer look at whether this is a one-off Azure-side hiccup
-  or something about this specific storage account/file share
-  (`csg10032006309a33d8` / `cs-anees-aiatacme-com-10032006309a33d8`,
-  `cloud-shell-storage-centralindia`) that needs attention — not investigated
-  further tonight since it wasn't blocking the deployment.
+  reconnect). Root cause not investigated (still worth a closer look at whether
+  it's a one-off Azure-side hiccup or something about this specific storage
+  account/file share — `csg10032006309a33d8` /
+  `cs-anees-aiatacme-com-10032006309a33d8`, `cloud-shell-storage-centralindia`) —
+  but the actual *impact* is now largely contained: both Terraform's state and its
+  root config are committed/remote (see "Backup & restore: remote Terraform
+  state"), so a third occurrence would no longer lose either.
 - **`ANTHROPIC_API_KEY` not set on the live deployment** — required for the ACME AI
   chat widget to actually respond; needs to be added as a Kubernetes secret and
   wired into the Helm values (same pattern as the other secrets in
