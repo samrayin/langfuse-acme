@@ -58,4 +58,33 @@ module "langfuse" {
   web_image_tag            = "acme-dev"
   worker_image_repository = "acmelangfuseacr.azurecr.io/langfuse-worker"
   worker_image_tag         = "acme-dev"
+
+  # Redis Cluster compatibility fix (2026-09-10, during the v4.33.0 upgrade).
+  # This Redis instance's clustering policy is Azure's "EnterpriseCluster"
+  # (see `az redisenterprise show`, not the plain `OSSCluster` policy) --
+  # keys ARE hash-slot-sharded (so BullMQ hit real CROSSSLOT errors), but
+  # the OSS `CLUSTER SLOTS` topology-discovery command ioredis's native
+  # Cluster client needs is blocked ("ERR command is not allowed"), so
+  # Langfuse's own `REDIS_CLUSTER_ENABLED=true` path can't be used here --
+  # it switches ioredis into Cluster-client mode, which depends on that
+  # blocked command. Fix: stay on the simple single-node client
+  # (REDIS_CLUSTER_ENABLED=false, Azure's own proxy handles routing) and
+  # force every key the app touches onto one hash slot via a hash-tag-
+  # wrapped REDIS_KEY_PREFIX -- collapses slot distribution, but on this
+  # SKU (Balanced_B1, HA disabled) that's not a real performance cost, and
+  # it's what actually eliminates CROSSSLOT without needing the blocked
+  # command. Applied live via `kubectl set env` before this was captured
+  # here; state isn't reconciled yet (see this file's header), so this
+  # won't take effect via Terraform until that's done -- it's captured now
+  # so a future `terraform apply` doesn't silently revert the live fix.
+  additional_env = [
+    {
+      name  = "REDIS_CLUSTER_ENABLED"
+      value = "false"
+    },
+    {
+      name  = "REDIS_KEY_PREFIX"
+      value = "{langfuse}"
+    },
+  ]
 }

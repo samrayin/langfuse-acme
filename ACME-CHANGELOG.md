@@ -8,7 +8,8 @@ go to production with full context, not as a pile of undocumented patches.
 into an unrelated change), and gets an entry here in the same commit. See
 `CONTRIBUTING-ACME.md` for the exact process.
 
-**Base version:** Langfuse `v4.17.0`, Helm chart `2.0.2` — matches what's live on
+**Base version:** Langfuse `v4.33.0` (upgraded from `v4.17.0` on 2026-09-10 — see
+"Upgrade to v4.33.0" below), Helm chart `2.0.0` — matches what's live on
 `langfuse-dev.aiatacme.com` (see `Azure Blueprint/ENVIRONMENT-STUDY.md` in the
 companion infrastructure project for the full deployment audit).
 
@@ -558,6 +559,111 @@ banner character; unrelated to the actual remote build, worked around by polling
 `acme-dev`, only the digest changed, so a restart was needed to force the
 `imagePullPolicy: Always` re-pull — a plain `helm upgrade --reuse-values` would
 have been a no-op). Verified live on `langfuse-dev.aiatacme.com` in both themes.
+
+---
+
+## Upgrade to v4.33.0
+
+**What:** Rebased the fork from Langfuse `v4.17.0` to `v4.33.0` (16 minor
+versions, ~2 months of upstream development) and deployed it live.
+
+**Why this approach:** This repo's history is a single-commit snapshot of
+`v4.17.0` with ACME's patches applied on top, not a real clone of upstream's
+history (documented gap — see "Full git history" in Outstanding, below) — so a
+normal `git merge`/rebase against the `v4.33.0` tag wasn't available. Instead:
+cloned `langfuse/langfuse` in full, created a branch from the real `v4.33.0`
+tag, and cherry-picked each of the fork's 17 ACME commits onto it in order.
+15 applied cleanly or with mechanical conflict resolution (upstream had moved
+files the baseline snapshot didn't capture correctly in the first place — a
+pre-existing gap in how this fork was originally built, not something new).
+Two needed real fixes, both only found by actually building the result:
+
+1. **`AcmeAuditLogsTable.tsx`'s `Avatar`/`IOTableCell` imports** — upstream
+   moved both into `web/src/components/design-system/` between v4.17 and
+   v4.33, and collapsed the old `Avatar`/`AvatarFallback`/`AvatarImage` trio
+   into a single `Avatar` component with a `displayName`/`src` prop API.
+   Fixed by updating the imports and switching to the new API and the
+   `ConnectedIOTableCell` adapter (same pattern every other v4.33 call site
+   uses). Caught by Turbopack: "Module not found".
+2. **ACR build OOM on the default Basic-tier build agent** — this Next.js
+   version's build is heavier than v4.17's; the build got OOM-killed during
+   Next's page-data-collection step with no clear error in the log. Fixed by
+   building on a dedicated ACR Tasks agent pool (`S2`, 4 vCPU/8GB) instead of
+   the shared default pool — deleted again after verification passed, since
+   dedicated pools bill hourly regardless of use.
+
+Both images were build-verified (tagged `v4.33.0-verify`) on a separate
+`acme-v4.33.0-rebuild` branch before touching `main` or the live deployment —
+`main`'s history was only force-pushed to the rebuilt one after the user
+explicitly confirmed adopting it (a history rewrite on a shared repo).
+
+**Real regression found at deploy time — Redis Cluster incompatibility:**
+after cutting the new images over, every BullMQ queue (traces, evals,
+deletes, notifications, webhooks, the new `otel-ingestion-queue`) started
+failing with Redis `CROSSSLOT` errors — this version's queue code, unlike
+v4.17's, doesn't tolerate the live Redis instance's actual clustering
+behavior. Root cause and fix: see "Redis Cluster compatibility fix" below.
+
+**Files:** `deploy/azure/versions.tf`'s pinned module source is unaffected
+(it already points at the ACME fork of `langfuse-terraform-azure`, which
+doesn't pin a Langfuse app version); the version bump lives entirely in the
+built container images and `main`'s new history — see the 19 commits between
+`v4.33.0` and `main`'s tip in this repo's own git log for the exact diff.
+
+**Deployment status:** Live on `langfuse-dev.aiatacme.com` as of 2026-09-10,
+including the Redis fix below.
+
+---
+
+## Redis Cluster compatibility fix
+
+**What:** `REDIS_CLUSTER_ENABLED=false` (explicit) and
+`REDIS_KEY_PREFIX={langfuse}` added to both `langfuse-web` and
+`langfuse-worker` — fixes the `CROSSSLOT` regression surfaced by the v4.33.0
+upgrade above.
+
+**Why:** The live Redis (`redis-langfuse-bgqj`, Azure Managed Redis) uses
+Azure's **`EnterpriseCluster`** clustering policy (confirmed via
+`az redisenterprise show` / `az redisenterprise database list`) — this is
+neither plain single-node nor real OSS Cluster:
+- Keys **are** hash-slot-sharded, so multi-key BullMQ operations without
+  matching hash slots genuinely fail with `CROSSSLOT` — this is what broke.
+- The OSS `CLUSTER SLOTS` topology-discovery command ioredis's native
+  `Cluster` client needs to operate in cluster mode is **blocked**
+  ("ERR command is not allowed") — Azure's Enterprise proxy handles
+  shard routing itself and doesn't expose this to clients. This means
+  Langfuse's own built-in `REDIS_CLUSTER_ENABLED=true` path (which switches
+  ioredis into `Cluster` client mode) doesn't work against this specific
+  Azure policy, even though it's exactly the right idea for genuine OSS
+  Cluster Redis.
+
+The fix that actually works for `EnterpriseCluster`: stay on ioredis's simple
+single-node client (`REDIS_CLUSTER_ENABLED=false`, avoiding the blocked
+command entirely — Azure's own proxy transparently routes each key to the
+correct shard), and force every key the app touches onto the **same** hash
+slot via a hash-tag-wrapped `REDIS_KEY_PREFIX` (`{langfuse}` — the braces are
+literal Redis hash-tag syntax; only their contents count toward slot
+hashing). `getQueuePrefix()` in `packages/shared/src/server/redis/redis.ts`
+already does this exact hash-tag wrapping when cluster mode is on, but ties
+it to the Cluster-client switch; `REDIS_KEY_PREFIX` gets the same effect via
+ioredis's own `keyPrefix` option, independent of client mode. Collapsing all
+keys onto one slot loses Redis-side key distribution, but on this SKU
+(`Balanced_B1`, high availability disabled) that's not a real cost.
+
+**Verification:** Both new pods' logs show every queue executor starting
+cleanly with zero `CROSSSLOT` or connection errors (previously every single
+queue failed on startup).
+
+**Not yet done:** this was applied live via `kubectl set env` (blocked from
+automated `kubectl patch`/`set env` by Claude Code's safety classifier, same
+pattern as other live-infra edits tonight — run manually), then captured in
+`deploy/azure/main.tf`'s `additional_env` so a future `terraform apply`
+doesn't silently revert it once state is reconciled (see "Terraform doesn't
+manage the live image configuration yet" in Outstanding).
+
+**Files:** `deploy/azure/main.tf`
+
+**Deployment status:** Live.
 
 ---
 
