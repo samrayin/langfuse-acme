@@ -615,6 +615,51 @@ including the Redis fix below.
 
 ---
 
+## Rebrand: built-in dashboards "Langfuse" -> "RayIn"
+
+**What:** Renamed every user-facing "Langfuse" string in the built-in
+seeded dashboards and their surrounding UI to "RayIn": the 4 curated
+dashboard names in `worker/src/constants/langfuse-dashboards.json`
+(Latency, Usage Management, Cost, Agent Dashboard) plus the separate
+`LANGFUSE_HOME_DASHBOARD` constant's name, the "Langfuse-maintained"
+section heading in the Home Dashboard picker, the "Owner" column's
+"Langfuse" tag in the Dashboards table, and the two "Langfuse"
+mentions in the clone-before-edit dialog (locked-dashboard copy flow)
+and the locked-dashboard detail page title suffix.
+
+**Why this approach — surface only, not the code beneath it:** Deliberately
+scoped to display text: JSON `name` values and JSX string literals, not the
+constant/identifier names (`LANGFUSE_HOME_DASHBOARD`,
+`LANGFUSE_HOME_DASHBOARD_ID`, the `owner: "LANGFUSE"` enum value itself,
+`upsertLangfuseDashboards`, file names, etc.) or anything env/package/image
+-level. A deep rename touching those would balloon the diff against
+upstream and make every future version bump (like the v4.33.0 upgrade
+above) much harder to carry forward — see the reasoning given when this was
+discussed. This keeps the same "surface rebrand, not a fork of the fork"
+posture as the logo/theme work earlier tonight.
+
+**A real trap avoided:** the JSON/constant `updatedAt` timestamps had to be
+bumped alongside each renamed `name` — `upsertLangfuseDashboards()`
+(`worker/src/scripts/upsertLangfuseDashboards.ts`) skips writing a row
+whose `updatedAt` already matches what's in the database, and it runs with
+`force` defaulting to `false` on every worker boot. Renaming `name` without
+also bumping `updatedAt` would have silently done nothing against the
+already-seeded live database.
+
+**Files:**
+- `worker/src/constants/langfuse-dashboards.json`
+- `packages/shared/src/domain/home-dashboard.ts`
+- `web/src/features/dashboard/components/HomeDashboardSelect.tsx`
+- `web/src/features/dashboard/components/DashboardTable.tsx`
+- `web/src/features/dashboard/components/CloneFirstDialogController.tsx`
+- `web/src/features/dashboard/DashboardDetailPage.tsx`
+
+**Deployment status:** Source-only until rebuilt/redeployed. Both `web`
+(UI strings) and `worker` (the seed JSON, re-upserted on next boot) need
+rebuilding — not just `web` alone.
+
+---
+
 ## Fix: Audit Logs nav item invisible after v4.33.0 upgrade
 
 **What:** `web/src/components/layouts/routes.tsx` and

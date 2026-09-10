@@ -1191,7 +1191,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
                     title:
                       (dashboard.data?.name || "Dashboard") +
                       (dashboard.data?.owner === "LANGFUSE"
-                        ? " (Langfuse Maintained)"
+                        ? " (RayIn Maintained)"
                         : ""),
                     titleContent:
                       hasCUDAccess && dashboard.data ? (

@@ -62,7 +62,7 @@ export function HomeDashboardSelect({
           ]
         : []),
       {
-        heading: "Langfuse-maintained",
+        heading: "RayIn-maintained",
         options: curated.map(toOption),
       },
     ];
