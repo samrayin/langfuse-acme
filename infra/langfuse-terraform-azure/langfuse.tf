@@ -132,24 +132,25 @@ langfuse:
 %{endfor}
 EOT
   image_values = (var.web_image_repository == null && var.web_image_tag == null && var.worker_image_repository == null && var.worker_image_tag == null) ? "" : <<EOT
+langfuse:
 %{if var.web_image_repository != null || var.web_image_tag != null}
-web:
-  image:
+  web:
+    image:
 %{if var.web_image_repository != null}
-    repository: ${var.web_image_repository}
+      repository: ${var.web_image_repository}
 %{endif}
 %{if var.web_image_tag != null}
-    tag: ${var.web_image_tag}
+      tag: ${var.web_image_tag}
 %{endif}
 %{endif}
 %{if var.worker_image_repository != null || var.worker_image_tag != null}
-worker:
-  image:
+  worker:
+    image:
 %{if var.worker_image_repository != null}
-    repository: ${var.worker_image_repository}
+      repository: ${var.worker_image_repository}
 %{endif}
 %{if var.worker_image_tag != null}
-    tag: ${var.worker_image_tag}
+      tag: ${var.worker_image_tag}
 %{endif}
 %{endif}
 EOT

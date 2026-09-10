@@ -12,15 +12,14 @@ into an unrelated change), and gets an entry here in the same commit. See
 `langfuse-dev.aiatacme.com` (see `Azure Blueprint/ENVIRONMENT-STUDY.md` in the
 companion infrastructure project for the full deployment audit).
 
-**Status of this fork as a whole:** dev prototype. As of 2026-09-10, both container
-images (`acmelangfuseacr.azurecr.io/langfuse-web:acme-dev`,
-`acmelangfuseacr.azurecr.io/langfuse-worker:acme-dev`) are built and pushed to Azure
-Container Registry — see the "Custom image build" entry below for exact digests.
-**Not yet deployed to `langfuse-dev.aiatacme.com`** — that requires wiring the new
-images into the live Terraform config and running `terraform apply`, deliberately
-held for explicit review before touching the live cluster. See "Deployment status"
-in each entry below for what's actually running today (nothing, yet) vs. what's
-built and ready.
+**Status of this fork as a whole:** **live on `langfuse-dev.aiatacme.com`** as of
+2026-09-10. Both container images (`acmelangfuseacr.azurecr.io/langfuse-web:acme-dev`,
+`acmelangfuseacr.azurecr.io/langfuse-worker:acme-dev`) are built, pushed, and
+deployed — `kubectl get pods -n langfuse` shows both `1/1 Running`, 0 restarts. See
+the "Live deployment" entry near the end of this file for the full path to get
+there (including two real bugs found and fixed along the way — an ACR build OOM
+and a CRLF-corrupted entrypoint script). Terraform itself does **not** yet manage
+this deployment — see that same entry for why and what's needed to close that gap.
 
 ---
 
@@ -407,16 +406,96 @@ end-to-end. Ready for `terraform init -upgrade` to be retried.
 
 ---
 
+## 2026-09-10 — Live deployment: ACME fork now running on langfuse-dev.aiatacme.com
+
+**What:** `langfuse-web:acme-dev` and `langfuse-worker:acme-dev` are deployed and
+serving traffic. `kubectl get pods -n langfuse`:
+```
+langfuse-web-66454bcc86-h4jsw      1/1   Running   0   <fresh>
+langfuse-worker-78f87875cf-vnhxw   1/1   Running   0   <fresh>
+```
+Zero downtime during the cutover — Kubernetes kept the previous pods serving until
+each new one passed its readiness probe, standard rolling-update behavior.
+
+**How this actually got deployed — not via Terraform:** Partway through, Cloud
+Shell's persistent `$HOME` (where `main.tf` and Terraform's local state lived, per
+the base-version note above) failed to mount on reconnect and came back completely
+empty. The real Azure infrastructure was verified completely unaffected
+(`az resource list -g rg-langfuse` — every resource `Succeeded`; `kubectl get pods`
+— the then-current deployment healthy) — this was purely a Cloud Shell storage
+issue, not data loss in the cluster. But with Terraform's own state gone, applying
+through Terraform risked it trying to reconcile against a blank slate for
+resources that already exist. Rather than block the deployment on a full
+`terraform import` of ~30 resources, deployed directly via `helm upgrade
+--reuse-values` (preserves every existing Helm value; only adds the four new image
+keys) as a deliberate, temporary bridge. **Terraform does not manage this
+deployment's current image configuration** — see "Outstanding" below.
+
+**Two more real bugs found and fixed live, not assumed:**
+
+1. **Wrong Helm value path.** Assumed (from earlier in this engagement, never
+   re-verified) that the chart used top-level `web.image.repository`/
+   `worker.image.repository`. It doesn't — confirmed via
+   `helm show values langfuse-charts/langfuse --version 2.0.2`, the real path is
+   `langfuse.web.image.repository` / `langfuse.worker.image.repository` (nested
+   under the top-level `langfuse:` key). This was wrong in **both** the `helm
+   upgrade --set` flags used here **and** the Terraform module fork's
+   `image_values` local — the Terraform fork has since been corrected to match
+   (not yet re-verified against a live `terraform plan`, since Terraform isn't
+   managing this deployment right now — see "Outstanding").
+2. **CRLF-corrupted `entrypoint.sh`.** Both new pods came up `ImagePullBackOff`
+   first (separate issue: AKS's kubelet had no `AcrPull` role on the brand-new
+   `acmelangfuseacr` registry — fixed with `az aks update --attach-acr
+   acmelangfuseacr`, a standard grant, not destructive). Once pulling worked, both
+   crashed with `[dumb-init] ./web/entrypoint.sh: No such file or directory` — a
+   misleading error. Inspected the actual bytes inside the already-pushed image via
+   a throwaway debug pod (`kubectl run --rm -it --command -- sh -c "cat -A
+   ./web/entrypoint.sh"`) and found `#!/bin/sh^M$` — a CRLF-corrupted shebang, not a
+   missing file. Root-caused to `git archive --format=zip` on Windows silently
+   converting these files' line endings during archive creation, even though the
+   actual git-stored blobs were already LF-only (confirmed: local checkout had no
+   `\r`, the zip built from `git archive` did). Fixed with a `.gitattributes` rule
+   (`*.sh text eol=lf`, `Dockerfile text eol=lf`) that forces `git archive` to emit
+   LF regardless of platform — verified against a freshly regenerated zip before
+   rebuilding. Both images were rebuilt and redeployed after this fix; the pods
+   above are running the corrected images.
+
+**Files:**
+- `.gitattributes` (new rule)
+- `infra/langfuse-terraform-azure/langfuse.tf`, `variables.tf` (corrected value path)
+
+**Deployment status:** Live. Verify at `https://langfuse-dev.aiatacme.com` — ACME
+logo, "Contact ACME Support" button, and "ACME Enhancements → Audit Logs" should
+all be visible now. The ACME AI chat widget will appear but not respond yet (see
+"Outstanding").
+
+---
+
 ## Outstanding, not yet done
 
-- **Deployment to the live cluster** — images are built and pushed, the Terraform
-  module fork with image-override support exists, but `main.tf` in Cloud Shell has
-  not been updated to reference the new images and no `terraform plan`/`apply` has
-  run. See the "Handoff" entry above for the exact remaining commands.
+- **Terraform doesn't manage the live image configuration.** The deployment above
+  was done via direct `helm upgrade`, not `terraform apply`, because Cloud Shell's
+  local Terraform state was unavailable at the time (see the "Live deployment"
+  entry above). To close this gap: recover or rebuild Terraform state (either
+  `terraform import` each of the ~30 resources in `rg-langfuse`, or — better,
+  long-term — migrate to a remote backend, e.g. an Azure Storage blob container, so
+  this can't recur), update `main.tf` per the module fork's `web_image_*`/
+  `worker_image_*` variables (using the corrected `langfuse.web.image.*` /
+  `langfuse.worker.image.*` paths, now fixed in the fork), and confirm
+  `terraform plan` shows zero diff against what's actually running (it should,
+  since the live Helm values already match what Terraform would set).
+- **Cloud Shell storage mount reliability.** The `$HOME` mount failed at least
+  twice in one session (once losing all local files, once again on a later
+  reconnect). Worth a closer look at whether this is a one-off Azure-side hiccup
+  or something about this specific storage account/file share
+  (`csg10032006309a33d8` / `cs-anees-aiatacme-com-10032006309a33d8`,
+  `cloud-shell-storage-centralindia`) that needs attention — not investigated
+  further tonight since it wasn't blocking the deployment.
 - **`ANTHROPIC_API_KEY` not set on the live deployment** — required for the ACME AI
   chat widget to actually respond; needs to be added as a Kubernetes secret and
   wired into the Helm values (same pattern as the other secrets in
-  `kubernetes_secret.langfuse`) before or as part of the deployment above.
+  `kubernetes_secret.langfuse`), and eventually into Terraform once it manages this
+  deployment again.
 - **Contact button target** — placeholder personal email, needs a real support channel
   before production.
 - **ACME AI end-to-end test** — backend/frontend built and internally consistent, not

@@ -22,8 +22,10 @@ nearest-looking tag.
 ## Why this fork exists
 
 The underlying Langfuse Helm chart (deployed at version `2.0.2`) already supports
-per-component container image overrides (`web.image.repository`/`tag`,
-`worker.image.repository`/`tag`) — verified directly against the chart's
+per-component container image overrides (`langfuse.web.image.repository`/`tag`,
+`langfuse.worker.image.repository`/`tag` — nested under the top-level `langfuse:`
+key, confirmed via `helm show values langfuse-charts/langfuse --version 2.0.2`
+against the live deployment, not assumed) — verified directly against the chart's
 `values.yaml` during the branding/deployment audit. The Terraform module itself
 only exposes `app_version` (which maps to `langfuse.image.tag` — the top-level
 default, not `web`/`worker` specifically) and has no `repository` override at
