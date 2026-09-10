@@ -118,21 +118,20 @@ variable "postgres_storage_mb" {
 }
 
 variable "redis_sku_name" {
-  description = "SKU name for Azure Cache for Redis"
+  description = "SKU name for Azure Managed Redis. See https://learn.microsoft.com/en-us/azure/redis/overview#choosing-the-right-tier for options. Common values: Balanced_B0 (dev/test), Balanced_B1, Balanced_B3, Balanced_B5 (production)."
   type        = string
-  default     = "Basic"
+  default     = "Balanced_B3"
+
+  validation {
+    condition     = can(regex("^(Balanced_B[0-9]+|ComputeOptimized_X[0-9]+|FlashOptimized_A[0-9]+|MemoryOptimized_M[0-9]+)$", var.redis_sku_name))
+    error_message = "redis_sku_name must be a valid Azure Managed Redis SKU (e.g., Balanced_B0, Balanced_B1, ComputeOptimized_X3, MemoryOptimized_M10)."
+  }
 }
 
-variable "redis_family" {
-  description = "Cache family for Azure Cache for Redis"
-  type        = string
-  default     = "C"
-}
-
-variable "redis_capacity" {
-  description = "Capacity of Azure Cache for Redis"
-  type        = number
-  default     = 1
+variable "redis_high_availability" {
+  description = "Enable high availability for Azure Managed Redis. Recommended for production workloads."
+  type        = bool
+  default     = true
 }
 
 variable "app_gateway_capacity" {
@@ -147,10 +146,98 @@ variable "use_ddos_protection" {
   default     = true
 }
 
+variable "clickhouse_replicas" {
+  description = "Number of ClickHouse replicas (single shard). The default of 3 provides a highly available setup. Only used when ClickHouse is deployed in-cluster."
+  type        = number
+  default     = 3
+
+  validation {
+    condition     = var.clickhouse_replicas >= 1
+    error_message = "clickhouse_replicas must be at least 1."
+  }
+}
+
+variable "clickhouse_keeper_replicas" {
+  description = "Number of ClickHouse Keeper replicas. Must be 1, 3 or 5 to maintain quorum. Only used when ClickHouse is deployed in-cluster."
+  type        = number
+  default     = 3
+
+  validation {
+    condition     = contains([1, 3, 5], var.clickhouse_keeper_replicas)
+    error_message = "clickhouse_keeper_replicas must be 1, 3 or 5."
+  }
+}
+
+variable "clickhouse_storage_size" {
+  description = "Size of the persistent volume of each ClickHouse replica"
+  type        = string
+  default     = "100Gi"
+}
+
+variable "clickhouse_keeper_storage_size" {
+  description = "Size of the persistent volume of each ClickHouse Keeper replica"
+  type        = string
+  default     = "10Gi"
+}
+
+variable "clickhouse_storage_class" {
+  description = "StorageClass used for the ClickHouse and ClickHouse Keeper volumes"
+  type        = string
+  default     = "managed-csi-premium"
+}
+
+variable "clickhouse_resources" {
+  description = "Resource requests and limits for each ClickHouse replica"
+  type = object({
+    cpu    = optional(string, "2")
+    memory = optional(string, "8Gi")
+  })
+  default = {}
+}
+
+variable "clickhouse_operator_chart_version" {
+  description = "Version of the ClickHouse operator Helm chart (oci://ghcr.io/clickhouse/clickhouse-operator-helm). The default matches the version the Langfuse Helm chart is tested against."
+  type        = string
+  default     = "0.0.5"
+}
+
+variable "cert_manager_chart_version" {
+  description = "Version of the cert-manager Helm chart. cert-manager issues the certificates for the ClickHouse operator admission webhooks."
+  type        = string
+  default     = "v1.20.2"
+}
+
+variable "external_clickhouse" {
+  description = "Use an external ClickHouse deployment (e.g. ClickHouse Cloud) instead of deploying ClickHouse into the AKS cluster. Set external_clickhouse_password as well. Prefix the host with https:// to connect via HTTPS. The defaults match ClickHouse Cloud; set cluster_enabled = false for ClickHouse Cloud on Azure or single-node deployments."
+  type = object({
+    host            = string
+    http_port       = optional(number, 8443)
+    native_port     = optional(number, 9440)
+    username        = optional(string, "default")
+    database        = optional(string, "default")
+    cluster_enabled = optional(bool, true)
+    migration_ssl   = optional(bool, true)
+  })
+  default = null
+}
+
+variable "external_clickhouse_password" {
+  description = "Password for the external ClickHouse user. Required when external_clickhouse is set."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 variable "langfuse_helm_chart_version" {
   description = "Version of the Langfuse Helm chart to deploy"
   type        = string
-  default     = "1.5.14"
+  default     = "2.0.0"
+}
+
+variable "app_version" {
+  description = "Langfuse application version (Docker image tag) to deploy, e.g. \"4.14.0\". Defaults to the latest Langfuse release at the time this module version was published. See https://github.com/langfuse/langfuse/releases."
+  type        = string
+  default     = "4.14.0"
 }
 
 variable "web_image_repository" {
@@ -160,7 +247,7 @@ variable "web_image_repository" {
 }
 
 variable "web_image_tag" {
-  description = "Custom container image tag for the Langfuse web component. Leave null to use the chart's default tag."
+  description = "Custom container image tag for the Langfuse web component. Leave null to use the chart's default tag (or var.app_version, which only maps to langfuse.image.tag, not web.image.tag specifically)."
   type        = string
   default     = null
 }

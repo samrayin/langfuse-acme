@@ -54,10 +54,9 @@ module "langfuse" {
   postgres_sku_name       = "GP_Standard_D2s_v3"
   postgres_storage_mb     = 32768
 
-  # Optional: Configure the cache
-  redis_sku_name = "Basic"
-  redis_family   = "C"
-  redis_capacity = 1
+  # Optional: Configure Azure Managed Redis
+  redis_sku_name          = "Balanced_B3" # Options: Balanced_B0, Balanced_B1, Balanced_B3, Balanced_B5, etc.
+  redis_high_availability = true          # Enabled by default for production
 
   # Optional: Configure Application Gateway
   app_gateway_capacity = 1
@@ -66,5 +65,9 @@ module "langfuse" {
   use_ddos_protection = true
 
   # Optional: Configure Langfuse Helm chart version
-  langfuse_helm_chart_version = "1.5.14"
+  langfuse_helm_chart_version = "2.0.0"
+
+  # Optional: Pin the Langfuse application version (defaults to the latest
+  # release at the time this module version was published)
+  app_version = "4.14.0"
 }

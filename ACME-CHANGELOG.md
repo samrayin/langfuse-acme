@@ -376,6 +376,37 @@ there to revert from if needed.
 
 ---
 
+## 2026-09-10 — Fix: Terraform module fork was built from the wrong base commit
+
+**What:** Rebuilt `infra/langfuse-terraform-azure/` from the correct upstream
+commit (`e939144c0a70dcc3de32f321ace86d34ee0d80c9` — the exact commit `main.tf`
+actually pins) instead of tag `0.4.5`. Also made the `samrayin/langfuse-acme`
+GitHub repo public, since Terraform's `git::https://` module source can't
+authenticate to a private repo non-interactively and Cloud Shell has no stored
+GitHub credentials for it.
+
+**Why:** Live, caught by `terraform init` itself, not by review. The earlier
+"Terraform module fork" entry above assumed tag `0.4.5` matched the pinned commit
+SHA in `main.tf` without checking — it didn't. `0.4.5` is 10 commits behind the
+actual pinned commit, and `terraform init` immediately failed with six
+`Unsupported argument` errors (`clickhouse_replicas`,
+`clickhouse_keeper_replicas`, `clickhouse_storage_size`,
+`clickhouse_keeper_storage_size`, `redis_high_availability`, and the underlying
+module having switched from `azurerm_redis_cache` to `azurerm_managed_redis`)
+for variables the live config already sets, that don't exist in `0.4.5`.
+Verified the correct commit with `git describe --tags <SHA>` against a full
+clone of the upstream module before rebuilding, rather than guessing again.
+The four-variable image-override patch itself was unaffected — reapplied
+cleanly onto the correct base.
+
+**Deployment status:** Fork corrected and pushed. Repo visibility change
+(private → public) was the one part of this fix done by the user directly
+(GitHub repo-settings changes are outside what runs autonomously) — everything
+else (commit verification, file rebuild, patch reapplication, push) was done
+end-to-end. Ready for `terraform init -upgrade` to be retried.
+
+---
+
 ## Outstanding, not yet done
 
 - **Deployment to the live cluster** — images are built and pushed, the Terraform

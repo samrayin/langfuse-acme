@@ -2,26 +2,37 @@
 
 This directory is a patched copy of the upstream Terraform module
 [`langfuse/langfuse-terraform-azure`](https://github.com/langfuse/langfuse-terraform-azure),
-pinned at tag `0.4.5` — the exact version currently used to manage
-`langfuse-dev.aiatacme.com` (see `Azure Blueprint/Azure.md` §2 in the companion
-infrastructure project).
+pinned at commit `e939144c0a70dcc3de32f321ace86d34ee0d80c9` — the **exact** commit
+the live `main.tf` for `langfuse-dev.aiatacme.com` references (see
+`Azure Blueprint/Azure.md` §2 in the companion infrastructure project).
+
+**Correction, 2026-09-10:** an earlier version of this fork was built from tag
+`0.4.5` instead. That was wrong — `0.4.5` is 10 commits *behind* the actual
+pinned commit, and is missing variables the live config depends on
+(`clickhouse_replicas`, `clickhouse_keeper_replicas`, `clickhouse_storage_size`,
+`clickhouse_keeper_storage_size`, `redis_high_availability`, and others — this
+module gained in-cluster ClickHouse support and switched from
+`azurerm_redis_cache` to `azurerm_managed_redis` somewhere in those 10 commits).
+The mistake surfaced immediately and loudly on `terraform init` (`Unsupported
+argument` for every one of those). This fork was rebuilt from the verified
+correct commit before anything was applied to the live cluster — verified via
+`git describe --tags` against the actual pinned SHA, not assumed from the
+nearest-looking tag.
 
 ## Why this fork exists
 
 The underlying Langfuse Helm chart (deployed at version `2.0.2`) already supports
 per-component container image overrides (`web.image.repository`/`tag`,
-`worker.image.repository`/`tag`) — this was verified directly against the chart's
-`values.yaml` during the branding/deployment audit. But this Terraform module's
-`0.4.5` release does not expose those as module variables anywhere in its
-`helm_release.langfuse` values composition (`langfuse.tf`) — there was no
-passthrough for a custom image at all. Without this, there is no way to point the
-Terraform-managed deployment at the custom ACME image (built from
-`langfuse-acme`, this repo's own web/worker fork) without hand-editing generated
-Helm values outside Terraform's management — exactly the kind of drift risk this
-whole engagement has been working to avoid (see the branding ConfigMap incident in
-`ACME-CHANGELOG.md`).
+`worker.image.repository`/`tag`) — verified directly against the chart's
+`values.yaml` during the branding/deployment audit. The Terraform module itself
+only exposes `app_version` (which maps to `langfuse.image.tag` — the top-level
+default, not `web`/`worker` specifically) and has no `repository` override at
+all. Without this fork, there is no way to point the Terraform-managed
+deployment at a custom ACME image without hand-editing generated Helm values
+outside Terraform's management — the same drift risk already documented for the
+logo ConfigMap incident in `ACME-CHANGELOG.md`.
 
-## What changed vs. upstream `0.4.5`
+## What changed vs. the pinned upstream commit
 
 - `variables.tf` — added four new optional variables, all defaulting to `null`
   (meaning: fall back to the chart's own default image, i.e. upstream Langfuse):
@@ -34,14 +45,14 @@ whole engagement has been working to avoid (see the branding ConfigMap incident 
   `additional_env_values` locals — no new pattern introduced.
 
 No other files were touched. This is a minimal, additive patch: every existing
-module consumer's behavior is unchanged unless they explicitly set one of the new
-variables.
+module consumer's behavior is unchanged unless they explicitly set one of the
+new variables.
 
 ## Usage
 
 ```hcl
 module "langfuse" {
-  source = "./infra/langfuse-terraform-azure"  # or wherever this is vendored from
+  source = "git::https://github.com/samrayin/langfuse-acme.git//infra/langfuse-terraform-azure?ref=main"
 
   # ... existing required variables (domain, etc.) ...
 
@@ -54,13 +65,11 @@ module "langfuse" {
 
 ## Deployment status
 
-Source-only — not yet referenced by the live `main.tf` in Cloud Shell, and no
-`terraform plan`/`apply` has been run against it yet. See `ACME-CHANGELOG.md` at
-the repo root for the up-to-date status of this and every other ACME change.
+See `ACME-CHANGELOG.md` at the repo root for the up-to-date status.
 
 ## Known gap, same as the app fork
 
 This is a patched snapshot, not a live-tracked fork with upstream history
 preserved (same tradeoff documented in `CONTRIBUTING-ACME.md` for the app side).
-Upgrading past `0.4.5` means manually re-applying this same four-variable patch
-to the new version.
+Upgrading past this pinned commit means manually re-applying this same
+four-variable patch to the new version.
