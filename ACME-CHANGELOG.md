@@ -508,6 +508,52 @@ it's live on `langfuse-dev.aiatacme.com`.
 
 ---
 
+## ACME theme: navy sidebar + teal brand accent
+
+Recolored the app chrome to match ACME's own Insight360 product design
+(navy sidebar, teal accent) instead of Langfuse's stock palette, using the
+existing CSS-variable design-token system in `globals.css` (no layout
+changes, no new components).
+
+**What changed (light mode only, `:root` block):**
+- `--sidebar-background`/`--sidebar-foreground`/`--sidebar-accent`/
+  `--sidebar-border` → deep navy (`hsl(210 55% 15%)`) chrome with a lighter
+  navy highlight for the active nav item
+- `--sidebar-accent-foreground`/`--sidebar-primary`/`--sidebar-ring` →
+  bright teal (`hsl(173 80% 40%)`, tuned for contrast against the navy fill)
+  — this is what colors the active nav item's icon/label
+- `--primary`/`--link`/`--link-hover`/`--ring` → darker teal
+  (`hsl(175 84% 26%)`, tuned for white-text contrast on a light canvas) —
+  colors primary buttons and hyperlinks
+
+Dark mode's own palette (near-black sidebar, light-gray primary) was left
+untouched — not part of this request.
+
+**Logo fix (both themes):** `LangfuseLogo.tsx` and `topbar-brand.tsx`
+previously swapped between `wordart-black.svg` (light) and `wordart-white.svg`
+(dark) via `dark:hidden`/`dark:block`. The source ACME logo file has an
+opaque white background (it's a raster JPEG, not a true-transparent vector),
+so `wordart-white.svg` was always a stale placeholder that never got updated
+in the earlier logo-replacement pass. Fixed by dropping the dark-mode
+variant entirely and always rendering `wordart-black.svg` inside a small
+white rounded pill (`bg-white rounded-md`) — same treatment now needed for
+the navy sidebar in light mode too. `wordart-white.svg` is no longer
+referenced anywhere in the app (left in `public/` unused rather than
+deleted, in case a future real dark-mode-specific asset replaces it).
+
+**Verification:** Iterated live against `langfuse-dev.aiatacme.com` by
+injecting CSS variable overrides via browser devtools before writing any
+code, to land on exact HSL values without a rebuild per iteration.
+
+**Files:**
+- `web/src/styles/globals.css`
+- `web/src/components/design-system/LangfuseLogo/LangfuseLogo.tsx`
+- `web/src/components/nav/topbar-brand.tsx`
+
+**Deployment status:** Not yet built/deployed — needs a web image rebuild.
+
+---
+
 ## Outstanding, not yet done
 
 - **Terraform doesn't manage the live image configuration.** The deployment above

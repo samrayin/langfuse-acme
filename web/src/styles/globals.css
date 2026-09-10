@@ -301,8 +301,12 @@
     --border-contrast: 214.3 20% 80%;
     --input: 214.3 31.8% 91.4%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    /* ACME brand teal. Darkened from the sidebar's brighter accent teal
+       (173 85% 60%, tuned for text on the navy sidebar) so white button/link
+       text keeps AA contrast on a light canvas -- reuses the --dark-teal
+       hue/chroma family already established for score-level coding below. */
+    --primary: 175 84% 26%;
+    --primary-foreground: 0 0% 100%;
 
     --secondary: 210 40% 96.1%;
     --secondary-foreground: 222.2 47.4% 11.2%;
@@ -316,14 +320,12 @@
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
 
-    --ring: 215 20.2% 65.1%;
+    --ring: 175 70% 40%;
 
     --primary-accent: 243 75.4% 58.6%;
-    /* Hyperlinks get their own pair (tabs/selection stay on primary-accent):
-       same lavender family as dark, but muted — links shouldn't be the
-       loudest thing on a light page — with a clearly darker hover step. */
-    --link: 246 40% 50%;
-    --link-hover: 246 55% 36%;
+    /* ACME brand teal, same family as --primary above. */
+    --link: 175 84% 30%;
+    --link-hover: 175 84% 22%;
     /* Preview-deployment strip (PR previews only): soft blue tint with text
        darker than the fill, links a step brighter than body text. Values are
        the blue-100/950/200/700/800 ramp. */
@@ -390,14 +392,17 @@
     --qlang-keyword: 221 83% 53%;
 
     --radius: 0.5rem;
-    --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 210 40% 96.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    /* ACME brand chrome: navy sidebar with a brighter teal (same hue as
+       --primary/--link, lifted to 60% lightness for AA text contrast against
+       the dark navy fill) marking the active nav item. */
+    --sidebar-background: 210 55% 15%;
+    --sidebar-foreground: 212 20% 78%;
+    --sidebar-primary: 173 80% 40%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 210 45% 23%;
+    --sidebar-accent-foreground: 173 85% 60%;
+    --sidebar-border: 210 40% 24%;
+    --sidebar-ring: 173 80% 40%;
 
     --find-match-background: 60 60% 85%;
     --find-match-selected-background: 60 100% 50%;

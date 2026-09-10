@@ -40,18 +40,18 @@ export const LangfuseLogo = ({
 
   return (
     <div className="flex items-center">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        className="-ml-1.5 h-5 max-w-22 translate-y-px group-data-[collapsible=icon]:hidden dark:hidden"
-        src={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/wordart-black.svg`}
-        alt="Langfuse Logo"
-      />
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        className="-ml-1.5 hidden h-5 max-w-22 translate-y-px group-data-[collapsible=icon]:hidden dark:block"
-        src={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/wordart-white.svg`}
-        alt="Langfuse Logo"
-      />
+      {/* The source logo file is an opaque (non-transparent) lockup, so it
+          needs its own light backing to stay legible on the navy sidebar in
+          light mode and the near-black sidebar in dark mode -- same fixed
+          artwork in both themes rather than a separate dark-mode variant. */}
+      <div className="rounded-md bg-white px-2 py-1 group-data-[collapsible=icon]:hidden">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          className="h-5 max-w-22 translate-y-px"
+          src={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/wordart-black.svg`}
+          alt="ACME Logo"
+        />
+      </div>
       <div className="hidden scale-120 group-data-[collapsible=icon]:block">
         <LangfuseIcon size={28} />
       </div>
