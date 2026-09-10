@@ -11,12 +11,8 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
-import { IOTableCell } from "@/src/components/ui/IOTableCell";
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/src/components/ui/avatar";
+import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
+import { Avatar } from "@/src/components/design-system/Avatar/Avatar";
 import { cn } from "@/src/utils/tailwind";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
@@ -60,14 +56,11 @@ export function AcmeAuditLogsTable({ projectId }: { projectId: string }) {
           const user = actor.body;
           return (
             <div className="flex items-center gap-2">
-              <Avatar className="h-6 w-6">
-                {user?.image && (
-                  <AvatarImage src={user.image} alt={user?.name ?? "User"} />
-                )}
-                <AvatarFallback>
-                  {user?.name?.charAt(0) ?? user?.email?.charAt(0) ?? "U"}
-                </AvatarFallback>
-              </Avatar>
+              <Avatar
+                size="sm"
+                displayName={user?.name ?? user?.email ?? "User"}
+                src={user?.image ?? undefined}
+              />
               <span
                 className={cn(
                   "text-sm",
@@ -99,7 +92,7 @@ export function AcmeAuditLogsTable({ projectId }: { projectId: string }) {
       cell: (row) => {
         const value = row.getValue() as string | null;
         return value ? (
-          <IOTableCell data={value} singleLine={rowHeight === "s"} />
+          <ConnectedIOTableCell data={value} singleLine={rowHeight === "s"} />
         ) : null;
       },
     },
@@ -110,7 +103,7 @@ export function AcmeAuditLogsTable({ projectId }: { projectId: string }) {
       cell: (row) => {
         const value = row.getValue() as string | null;
         return value ? (
-          <IOTableCell data={value} singleLine={rowHeight === "s"} />
+          <ConnectedIOTableCell data={value} singleLine={rowHeight === "s"} />
         ) : null;
       },
     },
