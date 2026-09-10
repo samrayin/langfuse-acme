@@ -471,6 +471,43 @@ all be visible now. The ACME AI chat widget will appear but not respond yet (see
 
 ---
 
+## Logo update: official ACME Almoayyed Computers Middle East logo
+
+Replaced the earlier placeholder ACME mark with the official logo (pinwheel mark +
+"ACME ALMOAYYED COMPUTERS MIDDLE EAST" wordmark with Arabic subtitle), sourced from
+the exact file the user provided (`ACME Logo 01.svg`, an SVG shell wrapping a
+237x76 JPEG — no manual redrawing, all derived pixels come from that source file).
+
+**What changed:**
+- `web/public/icon.svg` — square mark only, cropped from the source logo's left
+  70x76 region (excludes the vertical divider line before the wordmark), padded
+  onto a transparent 76x76 square, then resized to the existing 93x93 canvas.
+- `web/public/wordart-black.svg` — full horizontal lockup (mark + wordmark), same
+  pixels as the source file, format-converted from JPEG to PNG at native
+  resolution (237x76). Used for the light-mode topbar logo.
+- `web/public/favicon-16x16.png`, `favicon-32x32.png`, `apple-touch-icon.png`,
+  `icon256.png`, `icon512.png`, `favicon.ico` — regenerated from the same square
+  mark crop via standard bicubic resize (favicon.ico rebuilt as a proper
+  multi-resolution 16/32/48 ICO with embedded PNG frames).
+
+**Not changed — needs a decision:** `web/public/wordart-white.svg` (the dark-mode
+topbar logo) was left as the previous placeholder. The source logo has an opaque
+white background with dark text/mark, so using it as-is for dark mode would show a
+white rectangle behind the logo instead of blending into the dark sidebar. Needs
+either a proper light/transparent variant from ACME's brand assets, or a decision
+to keep a plain wordmark-only treatment for dark mode.
+
+**Files:**
+- `web/public/icon.svg`, `wordart-black.svg`, `favicon-16x16.png`,
+  `favicon-32x32.png`, `apple-touch-icon.png`, `icon256.png`, `icon512.png`,
+  `favicon.ico`
+
+**Deployment status:** Not yet built/deployed — needs a web image rebuild (same
+ACR Tasks build + `helm upgrade` flow as the earlier logo/branding work) before
+it's live on `langfuse-dev.aiatacme.com`.
+
+---
+
 ## Outstanding, not yet done
 
 - **Terraform doesn't manage the live image configuration.** The deployment above
