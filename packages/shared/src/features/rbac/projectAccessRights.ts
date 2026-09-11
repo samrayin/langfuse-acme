@@ -73,6 +73,12 @@ export const projectScopes = [
 
   "projectAuditLogs:read",
 
+  // ACME addition: read access to the Guardrails dashboard (recent
+  // block/redact/allow decisions from rayin-guardrails). Owner/admin only,
+  // same sensitivity level as audit logs -- these events reveal what
+  // content was flagged or blocked, not just that something happened.
+  "projectGuardrails:read",
+
   "TableViewPresets:CUD",
   "TableViewPresets:read",
 
@@ -149,6 +155,7 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "promptExperiments:CUD",
     "promptExperiments:read",
     "projectAuditLogs:read",
+    "projectGuardrails:read",
     "dashboards:read",
     "dashboards:CUD",
     "TableViewPresets:CUD",
@@ -206,6 +213,7 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "promptExperiments:CUD",
     "promptExperiments:read",
     "projectAuditLogs:read",
+    "projectGuardrails:read",
     "dashboards:read",
     "dashboards:CUD",
     "TableViewPresets:CUD",

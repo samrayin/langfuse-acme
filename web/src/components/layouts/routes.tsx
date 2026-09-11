@@ -21,6 +21,7 @@ import {
   Clock,
   Beaker,
   ShieldCheck,
+  ShieldAlert,
   Palette,
 } from "lucide-react";
 import { type ReactNode } from "react";
@@ -238,6 +239,19 @@ export const ROUTES: Route[] = [
     pathname: `/project/[projectId]/acme-enhancements/ui-customization`,
     icon: Palette,
     projectRbacScopes: ["project:update"],
+    group: RouteGroup.AcmeEnhancements,
+    section: RouteSection.Main,
+  },
+  {
+    // ACME addition: reads recent block/redact/allow decisions from
+    // rayin-guardrails (github.com/samrayin/rayin-guardrails) — a separate
+    // service, not code in this repo. See acmeGuardrailsRouter.ts for why
+    // this dashboard is only ever as durable as that service's own
+    // in-memory buffer.
+    title: "Guardrails",
+    pathname: `/project/[projectId]/acme-enhancements/guardrails`,
+    icon: ShieldAlert,
+    projectRbacScopes: ["projectGuardrails:read"],
     group: RouteGroup.AcmeEnhancements,
     section: RouteSection.Main,
   },

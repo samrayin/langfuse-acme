@@ -50,6 +50,12 @@ export const env = createEnv({
     // (web/src/features/acme-enhancements/server/acmeChatRouter.ts). Never
     // exposed to the client — read only inside the tRPC mutation handler.
     ANTHROPIC_API_KEY: z.string().optional(),
+    // ACME addition: in-cluster URL of the rayin-guardrails service (see
+    // https://github.com/samrayin/rayin-guardrails), read only by
+    // acmeGuardrailsRouter.ts. Left unset, the Guardrails dashboard reports
+    // itself as not configured rather than erroring — a customer who
+    // doesn't run this integration is never required to.
+    RAYIN_GUARDRAILS_URL: z.string().optional(),
     NEXTAUTH_SECRET:
       process.env.NODE_ENV === "production"
         ? z.string().min(1)
@@ -744,6 +750,7 @@ export const env = createEnv({
   runtimeEnv: {
     // ACME addition
     ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+    RAYIN_GUARDRAILS_URL: process.env.RAYIN_GUARDRAILS_URL,
     SEED_SECRET_KEY: process.env.SEED_SECRET_KEY,
     NEXT_PUBLIC_DEMO_PROJECT_ID: process.env.NEXT_PUBLIC_DEMO_PROJECT_ID,
     NEXT_PUBLIC_DEMO_ORG_ID: process.env.NEXT_PUBLIC_DEMO_ORG_ID,
