@@ -56,6 +56,11 @@ export const env = createEnv({
     // itself as not configured rather than erroring — a customer who
     // doesn't run this integration is never required to.
     RAYIN_GUARDRAILS_URL: z.string().optional(),
+    // ACME addition: shared secret for rayin-guardrails' PUT /v1/config —
+    // required to push Guardrails dashboard toggle changes there. Never
+    // exposed to the client. Left unset, updateConfig refuses to call an
+    // endpoint it can't authenticate to, rather than silently failing.
+    RAYIN_GUARDRAILS_CONFIG_SECRET: z.string().optional(),
     NEXTAUTH_SECRET:
       process.env.NODE_ENV === "production"
         ? z.string().min(1)
@@ -751,6 +756,7 @@ export const env = createEnv({
     // ACME addition
     ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
     RAYIN_GUARDRAILS_URL: process.env.RAYIN_GUARDRAILS_URL,
+    RAYIN_GUARDRAILS_CONFIG_SECRET: process.env.RAYIN_GUARDRAILS_CONFIG_SECRET,
     SEED_SECRET_KEY: process.env.SEED_SECRET_KEY,
     NEXT_PUBLIC_DEMO_PROJECT_ID: process.env.NEXT_PUBLIC_DEMO_PROJECT_ID,
     NEXT_PUBLIC_DEMO_ORG_ID: process.env.NEXT_PUBLIC_DEMO_ORG_ID,
