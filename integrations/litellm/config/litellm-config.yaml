@@ -43,15 +43,17 @@ litellm_settings:
   failure_callback: ["langfuse"]
 
 # Starter virtual keys — one per team/use case, per README.md "Open
-# decisions" #3 (2026-09-11: $10/key, confirmed). Created via the LiteLLM
-# Admin UI or API after the proxy is up, e.g.:
+# decisions" #3 (2026-09-12: $50/key, confirmed -- per-key, not a shared
+# total; live-updated via /key/update from an earlier, undocumented $25/key
+# drift). Created via the LiteLLM Admin UI or API after the proxy is up,
+# e.g.:
 #
 #   curl -X POST http://litellm.rayin-platform:4000/key/generate \
 #     -H "Authorization: Bearer $LITELLM_MASTER_KEY" \
 #     -H "Content-Type: application/json" \
-#     -d '{"key_alias": "chat-widget", "max_budget": 10, "models": ["claude-sonnet"]}'
+#     -d '{"key_alias": "chat-widget", "max_budget": 50, "models": ["claude-sonnet"]}'
 #
 #   curl -X POST http://litellm.rayin-platform:4000/key/generate \
 #     -H "Authorization: Bearer $LITELLM_MASTER_KEY" \
 #     -H "Content-Type: application/json" \
-#     -d '{"key_alias": "rayin-guardrails", "max_budget": 10, "models": ["claude-sonnet"]}'
+#     -d '{"key_alias": "rayin-guardrails", "max_budget": 50, "models": ["claude-sonnet"]}'

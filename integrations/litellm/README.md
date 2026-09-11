@@ -115,11 +115,14 @@ second opinion.
    [`config/litellm-config.yaml`](config/litellm-config.yaml), omitted from
    the secret) — flip on later by uncommenting and adding the key, no
    redeploy of anything else required.
-3. **Budget: $10 per virtual key.** Applied to the two starter keys
-   (`chat-widget`, `rayin-guardrails`) in the key-generation commands below.
-   Confirm with the user before creating any *additional* virtual key beyond
-   these two whether $10 is meant per-key or was actually a total across all
-   keys — worth double-checking before this becomes five keys at $10 each.
+3. **Budget: $50 per virtual key — confirmed 2026-09-12.** Per-key, not a
+   shared total; each new key gets its own $50 cap. Applied live to both
+   starter keys (`chat-widget`, `rayin-guardrails`) via `/key/update`, not
+   just this file. History, since the two drifted from what was documented
+   before this was actually answered: created at $10/key, live-adjusted to
+   $25/key at some point without a doc update, now $50/key everywhere. If a
+   key's actual budget and this file ever disagree again, trust
+   `/key/info`, not this file — update this file to match, not the reverse.
 
 ## Deployment guide
 
