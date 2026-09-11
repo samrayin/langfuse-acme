@@ -304,8 +304,11 @@
     /* ACME brand teal. Darkened from the sidebar's brighter accent teal
        (173 85% 60%, tuned for text on the navy sidebar) so white button/link
        text keeps AA contrast on a light canvas -- reuses the --dark-teal
-       hue/chroma family already established for score-level coding below. */
-    --primary: 175 84% 26%;
+       hue/chroma family already established for score-level coding below.
+       Darkened further (26% -> 18%) on 2026-09-11: at small/thin text sizes
+       (e.g. the org/project breadcrumb switcher) 26% read as too pale on a
+       light background. */
+    --primary: 175 84% 18%;
     --primary-foreground: 0 0% 100%;
 
     --secondary: 210 40% 96.1%;
