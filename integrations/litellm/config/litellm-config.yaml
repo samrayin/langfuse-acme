@@ -42,23 +42,6 @@ litellm_settings:
   success_callback: ["langfuse"]
   failure_callback: ["langfuse"]
 
-# LiteLLM's native PII guardrail (Presidio) — not the separate custom
-# rayin-guardrails microservice discussed elsewhere, which doesn't exist
-# yet. Runs pre_call, before the request reaches the model, against the
-# presidio-analyzer/presidio-anonymizer pods in ../k8s/presidio.yaml.
-# PRESIDIO_ANALYZER_API_BASE / PRESIDIO_ANONYMIZER_API_BASE come from
-# ../k8s/deployment.yaml's env (plain in-cluster Service URLs, not secret).
-guardrails:
-  - guardrail_name: "pii-mask"
-    litellm_params:
-      guardrail: presidio
-      mode: "pre_call"
-      pii_entities_config:
-        CREDIT_CARD: "MASK"
-        EMAIL_ADDRESS: "MASK"
-        PHONE_NUMBER: "MASK"
-        US_SSN: "MASK"
-
 # Starter virtual keys — one per team/use case, per README.md "Open
 # decisions" #3 (2026-09-11: $10/key, confirmed). Created via the LiteLLM
 # Admin UI or API after the proxy is up, e.g.:

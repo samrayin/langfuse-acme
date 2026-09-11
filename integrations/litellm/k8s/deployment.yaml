@@ -31,14 +31,6 @@ spec:
           envFrom:
             - secretRef:
                 name: litellm-provider-keys
-          env:
-            # In-cluster Service URLs for the presidio guardrail (see
-            # ../config/litellm-config.yaml's guardrails: block and
-            # presidio.yaml) — plain values, not secret.
-            - name: PRESIDIO_ANALYZER_API_BASE
-              value: "http://presidio-analyzer.rayin-platform.svc.cluster.local:5002"
-            - name: PRESIDIO_ANONYMIZER_API_BASE
-              value: "http://presidio-anonymizer.rayin-platform.svc.cluster.local:5001"
           resources:
             requests:
               cpu: 250m
