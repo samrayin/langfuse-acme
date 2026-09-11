@@ -23,12 +23,20 @@
 # specifically would risk a later `apply` rotating a secret the running
 # app still depends on -- that's the one part of this script worth reading
 # closely before trusting it.
+#
+# Import order matters: the kubernetes/helm providers (providers.tf) are
+# configured from azurerm_kubernetes_cluster.this's own outputs, so ANY
+# `terraform import` run before that specific resource is in state fails
+# provider initialization for every resource, not just Kubernetes ones --
+# found live during ACME's own reconciliation (2026-09-11). AKS is imported
+# second, right after the resource group, for exactly this reason.
 
 set -euo pipefail
 
 SUB_ID="87f4e6be-6585-4a1a-93f3-1a896cf644b9"
 RG="rg-langfuse"
 PREFIX="/subscriptions/${SUB_ID}/resourceGroups/${RG}/providers"
+AKS_CLUSTER_ID="${PREFIX}/Microsoft.ContainerService/managedClusters/aks-langfuse"
 
 import() {
   local addr="$1" id="$2"
@@ -39,6 +47,27 @@ import() {
 echo "=== Resource group ==="
 import module.langfuse.azurerm_resource_group.this \
   "/subscriptions/${SUB_ID}/resourceGroups/${RG}"
+
+echo "=== AKS (imported early -- everything else below needs this in state" \
+     "first so the kubernetes/helm providers can even initialize) ==="
+import module.langfuse.azurerm_kubernetes_cluster.this \
+  "${AKS_CLUSTER_ID}"
+echo "--- fetching cluster credentials for the kubectl-dependent steps below"
+az aks get-credentials --resource-group "$RG" --name aks-langfuse --overwrite-existing
+
+echo "=== Naming module's own randomness (the shared "bgqj"-style suffix" \
+     "baked into every resource name below -- must be imported before" \
+     "anything whose name depends on it, or Terraform will plan to" \
+     "generate a NEW random suffix and try to rename/replace everything) ==="
+# The published Azure/naming/azurerm module builds its suffix from
+# substr(first_letter.result + main.result, 0, unique-length=4). Only the
+# first 4 characters of that concatenation are ever used in any resource
+# name, so the un-used tail of `main` (56 characters) is harmless padding --
+# what matters is that first_letter + the start of main reproduce the real
+# suffix visible in every resource name below (e.g. "bgqj").
+import 'module.langfuse.module.naming.random_string.first_letter' "b"
+import 'module.langfuse.module.naming.random_string.main' "gqj000000000000000000000000000000000000000000000000000"
+import module.langfuse.random_string.key_vault_postfix "bgqj"
 
 echo "=== Network ==="
 import module.langfuse.azurerm_virtual_network.this \
@@ -95,7 +124,6 @@ import module.langfuse.azurerm_user_assigned_identity.appgw \
 echo "=== Role assignments (resolved by principal/role, not hardcoded GUIDs) ==="
 AKS_UAI_PRINCIPAL=$(az identity show --ids "${PREFIX}/Microsoft.ManagedIdentity/userAssignedIdentities/uai-langfuse-aks" --query principalId -o tsv)
 APPGW_UAI_PRINCIPAL=$(az identity show --ids "${PREFIX}/Microsoft.ManagedIdentity/userAssignedIdentities/uai-langfuse-appgw-identity" --query principalId -o tsv)
-AKS_CLUSTER_ID="${PREFIX}/Microsoft.ContainerService/managedClusters/aks-langfuse"
 KV_ID="${PREFIX}/Microsoft.KeyVault/vaults/kv-langfuse-bgqj"
 RG_ID="/subscriptions/${SUB_ID}/resourceGroups/${RG}"
 
@@ -114,13 +142,16 @@ RA=$(find_role_assignment_id "$APPGW_UAI_PRINCIPAL" "Reader" "$AKS_CLUSTER_ID")
 [ -n "$RA" ] && import module.langfuse.azurerm_role_assignment.aks_agic_reader "$RA"
 RA=$(find_role_assignment_id "$APPGW_UAI_PRINCIPAL" "Managed Identity Operator" "$AKS_CLUSTER_ID")
 [ -n "$RA" ] && import module.langfuse.azurerm_role_assignment.agic_identity_operator "$RA"
+RA=$(find_role_assignment_id "$APPGW_UAI_PRINCIPAL" "Network Contributor" "$AKS_CLUSTER_ID")
+[ -n "$RA" ] && import module.langfuse.azurerm_role_assignment.aks_agic_integration "$RA"
+RA=$(find_role_assignment_id "$APPGW_UAI_PRINCIPAL" "Key Vault Secrets User" "$KV_ID")
+[ -n "$RA" ] && import module.langfuse.azurerm_role_assignment.keyvault_secrets_user "$RA"
+RA=$(find_role_assignment_id "$APPGW_UAI_PRINCIPAL" "Key Vault Certificates Officer" "$KV_ID")
+[ -n "$RA" ] && import module.langfuse.azurerm_role_assignment.keyvault_certificates_officer "$RA"
 
-echo "  NOTE: aks_agic_integration is the AGIC-addon-to-AppGW role and"
-echo "  keyvault_secrets_user/keyvault_certificates_officer are KV-scoped --"
-echo "  if any 'find_role_assignment_id' above returned empty, list them"
-echo "  manually: az role assignment list --scope <resource-id> --all"
-echo "  and add the matching 'terraform import module.langfuse.azurerm_role_assignment.<name> <id>'"
-echo "  line by hand before continuing."
+echo "  NOTE: if any of the seven role-assignment imports above show as"
+echo "  skipped, list them manually and add the matching import line by hand:"
+echo "  az role assignment list --scope <resource-id> --all"
 
 echo "=== Application Gateway ==="
 import module.langfuse.azurerm_public_ip.appgw \
@@ -128,21 +159,26 @@ import module.langfuse.azurerm_public_ip.appgw \
 import module.langfuse.azurerm_application_gateway.this \
   "${PREFIX}/Microsoft.Network/applicationGateways/agw-langfuse"
 
-echo "=== AKS ==="
-import module.langfuse.azurerm_kubernetes_cluster.this \
-  "${AKS_CLUSTER_ID}"
-
 echo "=== DNS ==="
+# Azure's own "az resource list" reports this resource type in lowercase
+# ("dnszones"), but Terraform's ID parser requires the ARM-canonical mixed
+# case ("dnsZones") -- found live during ACME's own reconciliation.
 import module.langfuse.azurerm_dns_zone.this \
-  "${PREFIX}/Microsoft.Network/dnszones/langfuse-dev.aiatacme.com"
+  "${PREFIX}/Microsoft.Network/dnsZones/langfuse-dev.aiatacme.com"
 import module.langfuse.azurerm_dns_a_record.app_gateway \
-  "${PREFIX}/Microsoft.Network/dnszones/langfuse-dev.aiatacme.com/A/@"
+  "${PREFIX}/Microsoft.Network/dnsZones/langfuse-dev.aiatacme.com/A/@"
 
 echo "=== Postgres ==="
 import module.langfuse.azurerm_postgresql_flexible_server.this \
   "${PREFIX}/Microsoft.DBforPostgreSQL/flexibleServers/psql-langfuse-bgqj"
+# The live server has 5 databases (azure_maintenance, postgres, azure_sys,
+# psqldb-langfuse, langfuse) -- the Terraform config's `name` for this
+# resource is "psqldb-langfuse", NOT the same-named "langfuse" database
+# (a different, unrelated database on the same server). Importing the
+# wrong one is a silent trap: the import itself succeeds, and only shows
+# up later as a forced replacement in `terraform plan`.
 import module.langfuse.azurerm_postgresql_flexible_server_database.langfuse \
-  "${PREFIX}/Microsoft.DBforPostgreSQL/flexibleServers/psql-langfuse-bgqj/databases/langfuse"
+  "${PREFIX}/Microsoft.DBforPostgreSQL/flexibleServers/psql-langfuse-bgqj/databases/psqldb-langfuse"
 import module.langfuse.azurerm_private_endpoint.postgres \
   "${PREFIX}/Microsoft.Network/privateEndpoints/pe-langfuse-postgres"
 import module.langfuse.azurerm_private_dns_zone.postgres \
@@ -159,15 +195,16 @@ import module.langfuse.azurerm_private_dns_zone.redis \
   "${PREFIX}/Microsoft.Network/privateDnsZones/privatelink.redis.azure.net"
 import module.langfuse.azurerm_private_dns_zone_virtual_network_link.redis \
   "${PREFIX}/Microsoft.Network/privateDnsZones/privatelink.redis.azure.net/virtualNetworkLinks/langfuse-redis"
-REDIS_PE_IP=$(az network private-endpoint show --resource-group "$RG" --name pe-langfuse-redis --query "customDnsConfigs[0].ipAddresses[0]" -o tsv)
 import module.langfuse.azurerm_private_dns_a_record.redis \
   "${PREFIX}/Microsoft.Network/privateDnsZones/privatelink.redis.azure.net/A/redis-langfuse-bgqj"
 
 echo "=== Storage ==="
 import module.langfuse.azurerm_storage_account.this \
   "${PREFIX}/Microsoft.Storage/storageAccounts/stlangfusebgqj"
+# AzureRM provider v5's azurerm_storage_container import ID is the full ARM
+# resource ID, not the older blob-URL format ("https://<account>.blob...").
 import module.langfuse.azurerm_storage_container.this \
-  "https://stlangfusebgqj.blob.core.windows.net/stct-langfuse"
+  "${PREFIX}/Microsoft.Storage/storageAccounts/stlangfusebgqj/blobServices/default/containers/stct-langfuse"
 import module.langfuse.azurerm_private_endpoint.storage \
   "${PREFIX}/Microsoft.Network/privateEndpoints/pe-langfuse-storage"
 import module.langfuse.azurerm_private_dns_zone.storage \
@@ -196,10 +233,6 @@ if [ -n "$KV_CERT_NAME" ]; then
 else
   echo "  NOTE: no certificate found in kv-langfuse-bgqj -- skipped azurerm_key_vault_certificate.this, check manually"
 fi
-# random_string.key_vault_postfix: the naming module's random suffix is
-# already visible in every resource name above ("bgqj") -- import by value,
-# same mechanism as the random_password/random_bytes resources below.
-import module.langfuse.random_string.key_vault_postfix "bgqj"
 
 echo "=== Kubernetes / Helm ==="
 import module.langfuse.kubernetes_namespace.langfuse "langfuse"
