@@ -50,6 +50,13 @@ export const env = createEnv({
     // (web/src/features/acme-enhancements/server/acmeChatRouter.ts). Never
     // exposed to the client — read only inside the tRPC mutation handler.
     ANTHROPIC_API_KEY: z.string().optional(),
+    // ACME addition: optional override so this deployment can route the
+    // chat feature through a governed gateway (e.g. integrations/litellm)
+    // instead of calling Anthropic directly. Left unset, behavior is
+    // unchanged — customers who don't opt into that integration are never
+    // required to run it. When set, ANTHROPIC_API_KEY becomes that
+    // gateway's virtual key rather than a real Anthropic key.
+    ANTHROPIC_BASE_URL: z.string().optional(),
     NEXTAUTH_SECRET:
       process.env.NODE_ENV === "production"
         ? z.string().min(1)
@@ -744,6 +751,7 @@ export const env = createEnv({
   runtimeEnv: {
     // ACME addition
     ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+    ANTHROPIC_BASE_URL: process.env.ANTHROPIC_BASE_URL,
     SEED_SECRET_KEY: process.env.SEED_SECRET_KEY,
     NEXT_PUBLIC_DEMO_PROJECT_ID: process.env.NEXT_PUBLIC_DEMO_PROJECT_ID,
     NEXT_PUBLIC_DEMO_ORG_ID: process.env.NEXT_PUBLIC_DEMO_ORG_ID,

@@ -15,6 +15,9 @@
  *     server), not an external HTTP round-trip through the MCP endpoint.
  *   - Only ANTHROPIC_API_KEY needs provisioning (via additional_env, same
  *     mechanism already used for the Entra SSO client secret).
+ *     ANTHROPIC_BASE_URL is optional on top of that — unset, this calls
+ *     Anthropic directly; set (see integrations/litellm), it routes through
+ *     that gateway instead, with ANTHROPIC_API_KEY becoming a virtual key.
  *
  * Security posture, same principles as acme_ai.py:
  *   1. Read-only by construction — the tool set below only ever calls
@@ -194,7 +197,15 @@ export const acmeChatRouter = createTRPCRouter({
         };
       }
 
-      const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+      // ANTHROPIC_BASE_URL is unset by default — calls Anthropic directly,
+      // unchanged from before. When a deployment opts into
+      // integrations/litellm as a governed gateway, ANTHROPIC_BASE_URL
+      // points at its /anthropic passthrough route and ANTHROPIC_API_KEY
+      // becomes that gateway's virtual key instead of a real Anthropic key.
+      const client = new Anthropic({
+        apiKey: env.ANTHROPIC_API_KEY,
+        baseURL: env.ANTHROPIC_BASE_URL || undefined,
+      });
 
       const messages: Anthropic.MessageParam[] = [
         ...input.history.map((m) => ({ role: m.role, content: m.content })),
