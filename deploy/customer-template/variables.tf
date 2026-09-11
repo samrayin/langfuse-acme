@@ -142,27 +142,32 @@ variable "langfuse_helm_chart_version" {
   default = "2.0.0"
 }
 
-# Images. Defaults to ACME's own built images -- override to null (the
-# module's own default) if this customer should run plain upstream
-# Langfuse instead of ACME's customized build.
+# Images. Leave these unset (null) for the FIRST apply -- the customer's own
+# container registry (created by create_container_registry in main.tf)
+# doesn't have the RayIn images in it yet, so pointing here on a first apply
+# would fail with ImagePullBackOff. Once the registry exists, mirror the
+# RayIn images into it and set these to that registry's own login server --
+# never to acmelangfuseacr.azurecr.io directly, which a customer's cluster
+# has no access to. See README.md's "Registry strategy" section for the
+# exact commands and full sequence.
 variable "web_image_repository" {
   type    = string
-  default = "acmelangfuseacr.azurecr.io/langfuse-web"
+  default = null
 }
 
 variable "web_image_tag" {
   type    = string
-  default = "acme-dev"
+  default = null
 }
 
 variable "worker_image_repository" {
   type    = string
-  default = "acmelangfuseacr.azurecr.io/langfuse-worker"
+  default = null
 }
 
 variable "worker_image_tag" {
   type    = string
-  default = "acme-dev"
+  default = null
 }
 
 # Anything beyond the Redis Cluster fix (which the module now applies to

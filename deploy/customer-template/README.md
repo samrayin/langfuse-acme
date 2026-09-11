@@ -11,6 +11,91 @@ own network ranges, own resource names, own secrets, own Terraform state.
 Nothing here can read, write, or collide with ACME's own environment or
 another customer's.
 
+## Branding — this deploys RayIn, ACME's product, not vanilla Langfuse
+
+The ACME logo, the "RAYIN" wordmark, and the navy color scheme are not a
+Terraform setting — they're compiled into the `langfuse-web` Docker image at
+build time (`web/src/components/design-system/LangfuseLogo/LangfuseLogo.tsx`,
+`web/src/components/nav/topbar-brand.tsx`, `web/src/styles/globals.css`).
+Terraform has no branding variable and cannot inject branding at deploy
+time. The **only** thing that determines whether a customer sees RayIn or
+plain upstream Langfuse is which image this template's Helm release pulls —
+set by `web_image_repository` / `web_image_tag` and
+`worker_image_repository` / `worker_image_tag` in `variables.tf`.
+
+Getting the branded image in front of a customer takes one extra step on
+day one — see "Registry strategy for customer deployments" immediately
+below for the exact sequence. **Do not shortcut that by leaving the image
+variables unset past the first apply, and never point them at
+`acmelangfuseacr.azurecr.io` directly** — that's ACME's own internal
+registry and a customer's cluster has no access to it. Either mistake means
+the customer ends up running plain upstream Langfuse with zero ACME/RayIn
+branding.
+
+## Registry strategy for customer deployments
+
+`acmelangfuseacr` is ACME's own internal dev/build registry — customer AKS
+clusters never get direct access to it. Instead, every customer deployment
+gets its **own** Container Registry, created inside their own subscription
+by this template (`create_container_registry = true` in `main.tf`, backed
+by `infra/langfuse-terraform-azure/registry.tf`), and the RayIn images are
+mirrored into it. This keeps every customer's registry access fully
+contained to their own subscription — no cross-tenant grants into ACME's
+registry, ever.
+
+Because the customer's registry doesn't exist until after the first
+`apply`, and the RayIn images aren't in it until you mirror them there,
+onboarding a customer is a **three-step sequence**, not a single apply:
+
+1. **First apply**, with `web_image_repository`/`web_image_tag`/
+   `worker_image_repository`/`worker_image_tag` left unset (`null`, the
+   default). This builds the customer's full environment, including their
+   new (empty) registry. The Langfuse pods will come up briefly on plain
+   upstream Langfuse (the chart's own default image) — expected, and fixed
+   in the next steps, not a failure.
+
+   ```bash
+   terraform apply
+   terraform output container_registry_login_server
+   ```
+
+2. **Mirror the branded images in**, run from a session that has pull
+   access to ACME's own registry (e.g. your own Cloud Shell / az cli
+   login — the same access already used to build these images in
+   `acmelangfuseacr`):
+
+   ```bash
+   az acr import \
+     --name <customer_acr_name_from_output_above> \
+     --source acmelangfuseacr.azurecr.io/langfuse-web:acme-dev \
+     --image langfuse-web:acme-dev
+   az acr import \
+     --name <customer_acr_name_from_output_above> \
+     --source acmelangfuseacr.azurecr.io/langfuse-worker:acme-dev \
+     --image langfuse-worker:acme-dev
+   ```
+
+3. **Point the template at the customer's own registry and re-apply.** In
+   `terraform.tfvars`:
+
+   ```hcl
+   web_image_repository    = "<container_registry_login_server output>/langfuse-web"
+   web_image_tag            = "acme-dev"
+   worker_image_repository = "<container_registry_login_server output>/langfuse-worker"
+   worker_image_tag         = "acme-dev"
+   ```
+
+   ```bash
+   terraform apply
+   ```
+
+   The Helm release updates to pull from the customer's own registry, and
+   the pods roll over to full RayIn branding.
+
+Re-run step 2 (the two `az acr import` commands) whenever RayIn ships a new
+version for this customer, then bump `web_image_tag`/`worker_image_tag` in
+`terraform.tfvars` and re-apply — same pattern as any other image upgrade.
+
 ## Why each customer needs their own state storage
 
 Terraform's "state" is its own record of what it built — and it contains
@@ -85,6 +170,9 @@ see `../azure/versions.tf` and `../azure/README.md`).
   actually different for them
 - `terraform.tfvars.example` → copy to `terraform.tfvars` (gitignored)
 - `backend.hcl.example` → copy to `<customer>.backend.hcl` (gitignored)
+- [`../../infra/langfuse-terraform-azure/registry.tf`](../../infra/langfuse-terraform-azure/registry.tf) —
+  the shared module's per-customer registry logic (`create_container_registry`,
+  enabled by this template's `main.tf`) — see "Registry strategy" above
 
 ## Air-gapped / no-internet customer deployments
 
@@ -117,9 +205,10 @@ first `terraform init`/`apply`:
 4. **Every container image those three charts reference** — the ClickHouse
    database image itself, cert-manager's own running pods, the
    clickhouse-operator's own pod, plus the Langfuse web/worker images
-   (already ACME's own images in `acmelangfuseacr` by this template's
-   defaults — only the three items above and ClickHouse's own image are
-   still pulled from public sources even with ACME's images set).
+   themselves (the RayIn images already live in the customer's own registry
+   by the time step 3 of "Registry strategy" above is done — only the three
+   items above and ClickHouse's own image still need a separate mirror for
+   a genuinely air-gapped customer).
 
 None of this is set up yet — Terraform and Helm both pull straight from the
 public internet as of this template. Before handing this template to a

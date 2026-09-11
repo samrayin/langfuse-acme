@@ -33,11 +33,14 @@ name                    = "langfuse"                              # resource nam
 # redis_sku_name           = "Balanced_B3"
 # redis_high_availability = true
 
-# Set to null (or omit the override) to run plain upstream Langfuse instead
-# of ACME's customized build:
-# web_image_repository    = "acmelangfuseacr.azurecr.io/langfuse-web"
+# Leave the four image_* variables commented out for the FIRST apply -- the
+# customer's own registry doesn't have the RayIn images yet. After the first
+# apply, mirror the images in and set these to point at THIS CUSTOMER'S OWN
+# registry (never acmelangfuseacr.azurecr.io directly -- their cluster has
+# no access to it). Full sequence: README.md's "Registry strategy" section.
+# web_image_repository    = "<container_registry_login_server output>/langfuse-web"
 # web_image_tag            = "acme-dev"
-# worker_image_repository = "acmelangfuseacr.azurecr.io/langfuse-worker"
+# worker_image_repository = "<container_registry_login_server output>/langfuse-worker"
 # worker_image_tag         = "acme-dev"
 
 # additional_env = [
