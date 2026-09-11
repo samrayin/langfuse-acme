@@ -8,6 +8,14 @@ go to production with full context, not as a pile of undocumented patches.
 into an unrelated change), and gets an entry here in the same commit. See
 `CONTRIBUTING-ACME.md` for the exact process.
 
+**Versioning:** every change that reaches the live deployment gets an annotated git
+tag at that commit, `acme-v4.33.0.N` (N incrementing: `.1`, `.2`, ...), pushed to
+`origin`. The tag message lists the full current ACME feature set, so
+`git clone` + `git checkout <tag>` reliably reconstructs exactly what was live at
+that point — no need to replay commit history or guess which combination of patches
+was actually deployed. See "Tagging convention" below for what a tag does and does
+not capture.
+
 **Base version:** Langfuse `v4.33.0` (upgraded from `v4.17.0` on 2026-09-10 — see
 "Upgrade to v4.33.0" below), Helm chart `2.0.0` — matches what's live on
 `langfuse-dev.aiatacme.com` (see `Azure Blueprint/ENVIRONMENT-STUDY.md` in the
@@ -790,6 +798,34 @@ reconciliation not started.
 
 ---
 
+## 2026-09-10 — Sidebar nav: expand/collapse sections + tagging convention
+
+**What:** Each route group in the left sidebar (`web/src/components/nav/nav-main.tsx`)
+is now a `Collapsible` with a rotating chevron on its label. Per-group open/closed
+state persists to `localStorage` (`sidebarCollapsedGroups`); a group holding the
+active page always renders expanded regardless of its stored state, so navigating
+to a page never hides its own nav entry.
+
+**Build note:** the first two ACR build attempts for this commit failed at Next.js's
+"Collecting page data" step with no usable error text in ACR's log capture. A full
+local `next build` of the identical commit completed with zero errors (all 83 pages
+generated), which pointed at Azure build-agent flakiness rather than a code defect —
+confirmed when a third ACR attempt of the same commit succeeded outright. If this
+step fails again on an unrelated future commit, try a plain retry before assuming a
+real regression; if it fails repeatedly, get real logs via
+`az rest --method post .../runs/<id>/listLogSasUrl?api-version=2019-06-01-preview`
++ `curl` (`az acr task logs` hangs/mis-renders on this Windows machine).
+
+**Deployment status:** Live. Built via `az acr build` (`bigpool`, run `dtm`,
+16m01s) and deployed via `kubectl rollout restart deployment/langfuse-web -n
+langfuse` — new pod healthy, clean startup logs, no errors.
+
+**Versioning established this entry:** tagged `acme-v4.33.0.1` at this commit —
+the first tag in this fork's history. See "Versioning" at the top of this file for
+the convention now in effect for every future deployed change.
+
+---
+
 ## Outstanding, not yet done
 
 - **Terraform doesn't manage the live image configuration yet.** The remote state
@@ -818,8 +854,7 @@ reconciliation not started.
   before production.
 - **ACME AI end-to-end test** — backend/frontend built and internally consistent, not
   yet proven against a live Claude API call from inside the running app.
-- **Full git history** — this repository's history starts from a single-commit
-  snapshot of v4.17.0 plus all patches already applied, not a proper clone of
-  Langfuse's own upstream history. Future upstream version bumps will need manual
-  re-application of these patches (a `git merge` against upstream tags isn't available
-  without redoing this as a real clone with these commits replayed on top).
+- ~~**Full git history**~~ — resolved 2026-09-10. `main` is now built on a real clone
+  of upstream Langfuse's history (tag `v4.33.0`), with every ACME commit cherry-picked
+  on top individually. A future upstream version bump can use a normal `git merge`/
+  rebase against the next upstream tag instead of manually replaying patches.
