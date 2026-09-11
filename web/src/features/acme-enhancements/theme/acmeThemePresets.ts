@@ -13,6 +13,8 @@ export const ACME_ACCENT_COLOR_KEYS = [
   "teal",
   "purple",
   "forest",
+  "black",
+  "red",
 ] as const;
 export type AcmeAccentColorKey = (typeof ACME_ACCENT_COLOR_KEYS)[number];
 
@@ -59,6 +61,25 @@ export const ACME_ACCENT_COLOR_PRESETS: Record<
     link: "152 45% 29%",
     linkHover: "152 45% 19%",
     ring: "152 40% 40%",
+  },
+  black: {
+    label: "Black",
+    swatch: "hsl(0 0% 12%)",
+    primary: "0 0% 12%",
+    link: "0 0% 16%",
+    linkHover: "0 0% 8%",
+    ring: "0 0% 35%",
+  },
+  red: {
+    // Deliberately deeper/more muted than --destructive (0 84.2% 60.2%,
+    // used for error states) so a primary button and an error state never
+    // read as the same color.
+    label: "Red",
+    swatch: "hsl(0 65% 35%)",
+    primary: "0 65% 35%",
+    link: "0 65% 39%",
+    linkHover: "0 65% 29%",
+    ring: "0 55% 50%",
   },
 };
 

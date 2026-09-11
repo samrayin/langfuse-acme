@@ -939,10 +939,14 @@ handing this to a first real customer.
 **What:**
 - New **UI Customization** page under ACME Enhancements
   (`web/src/features/acme-enhancements/pages/AcmeUiCustomizationPage.tsx`):
-  an owner/admin picks from 4 accent-color presets (Navy, Teal, Purple,
-  Forest Green) and 3 top-bar background presets (Plain, Soft tint,
-  Gradient), applied live for every user in the project — no redeploy.
-  Deliberately a fixed preset list, not a free color picker.
+  an owner/admin picks from a fixed set of accent-color presets (Navy, Teal,
+  Purple, Forest Green, Black, Red — Black/Red added 2026-09-11 shortly
+  after launch, `acmeThemePresets.ts`) and 3 top-bar background presets
+  (Plain, Soft tint, Gradient), applied live for every user in the
+  project — no redeploy. Deliberately a fixed preset list, not a free color
+  picker; adding a new preset is a one-entry addition to
+  `ACME_ACCENT_COLOR_PRESETS` — the picker UI and server-side validation
+  both read the list dynamically, nothing else needs touching.
 - Stored in `Project.metadata` (a generic JSON column Langfuse already has)
   under an `acmeTheme` key — **no database migration needed**. New
   `acmeThemeRouter.ts` (`get`: any project member; `update`: `project:update`
