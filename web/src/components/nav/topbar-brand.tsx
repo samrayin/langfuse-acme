@@ -67,14 +67,19 @@ export const TopbarBrand = ({
       ) : variant === "wordmark" ? (
         // Same fixed white-backed artwork in both themes -- see LangfuseLogo's
         // comment: the source logo is opaque and needs its own light backing.
-        <div className="rounded-md bg-white px-1.5 py-0.5">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            className="max-h-5 max-w-24"
-            src={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/wordart-black.svg`}
-            alt="ACME Logo"
-          />
-        </div>
+        <>
+          <div className="rounded-md bg-white px-1.5 py-0.5">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              className="max-h-5 max-w-24"
+              src={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/wordart-black.svg`}
+              alt="ACME Logo"
+            />
+          </div>
+          <span className="text-foreground text-sm font-extrabold tracking-wide">
+            RAY<span className="text-primary">IN</span>
+          </span>
+        </>
       ) : (
         <LangfuseIcon size={28} />
       )}

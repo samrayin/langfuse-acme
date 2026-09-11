@@ -52,6 +52,9 @@ export const LangfuseLogo = ({
           alt="ACME Logo"
         />
       </div>
+      <span className="ml-2 truncate text-base font-extrabold tracking-wide text-white group-data-[collapsible=icon]:hidden">
+        RAY<span className="text-sidebar-accent-foreground">IN</span>
+      </span>
       <div className="hidden scale-120 group-data-[collapsible=icon]:block">
         <LangfuseIcon size={28} />
       </div>

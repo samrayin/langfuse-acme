@@ -848,6 +848,41 @@ pattern as before, just the new repo name.
 
 ---
 
+## 2026-09-11 — Sidebar reorg + RAYIN wordmark
+
+**What:**
+- **Contact ACME Support** relocated from a button buried inside the generic
+  Support drawer (`IntroSection.tsx`) to its own first-class nav item under
+  **ACME Enhancements**, right after Audit Logs (`routes.tsx`, new
+  `web/src/components/nav/acme-contact-support-nav-item.tsx`). Target email
+  updated from a placeholder personal address to `helpdesk@almoayyedcomputers.com`.
+- **Version label** (the small badge/dropdown that used to sit next to the
+  logo, showing the running version and update status) relocated to the
+  bottom of the **ACME Enhancements** group, same place. Required a small,
+  generic addition to `NavMain` (`nav-main.tsx`): an optional
+  `groupExtraContent` prop that renders arbitrary content at the end of a
+  named group's body, inside its collapsible section — used here for
+  `RouteGroup.AcmeEnhancements` only. `versionState` itself is untouched
+  (still computed once in `AuthenticatedLayout.tsx`); only where its
+  existing `VersionLabel` renders moved.
+- **"RAYIN" wordmark** added next to the ACME logo, both in the sidebar
+  header (`LangfuseLogo.tsx`) and the mobile top bar's wordmark variant
+  (`topbar-brand.tsx`) — two-tone bold text reusing the sidebar's existing
+  teal accent token for the "IN", so it matches the navy/teal theme
+  automatically rather than a new hardcoded color.
+
+**Why:** product decision — RayIn is the name this solution will go to
+customers as, so it belongs next to the mark itself, not just in dashboard
+labels. Audit Logs, Contact Support, and version info are all ACME-specific
+additions to the base product, so grouping them together under one section
+is more discoverable than leaving Contact Support behind an unrelated
+Support button and Version floating in the header.
+
+**Deployment status:** built and deployed same as prior entries — see
+commit history for the exact build/deploy run.
+
+---
+
 ## Outstanding, not yet done
 
 - **Terraform doesn't manage the live image configuration yet.** The remote state
@@ -872,8 +907,8 @@ pattern as before, just the new repo name.
   wired into the Helm values (same pattern as the other secrets in
   `kubernetes_secret.langfuse`), and eventually into Terraform once it manages this
   deployment again.
-- **Contact button target** — placeholder personal email, needs a real support channel
-  before production.
+- ~~**Contact button target**~~ — resolved 2026-09-11, see "Sidebar reorg + RAYIN
+  wordmark" below.
 - **ACME AI end-to-end test** — backend/frontend built and internally consistent, not
   yet proven against a live Claude API call from inside the running app.
 - ~~**Full git history**~~ — resolved 2026-09-10. `main` is now built on a real clone

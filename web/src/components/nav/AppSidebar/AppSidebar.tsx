@@ -18,7 +18,7 @@ import {
 } from "@/src/components/ui/sidebar";
 import Link from "next/link";
 import { LangfuseLogo } from "@/src/components/design-system/LangfuseLogo/LangfuseLogo";
-import { type RouteGroup } from "@/src/components/layouts/routes";
+import { RouteGroup } from "@/src/components/layouts/routes";
 import {
   ArrowUp,
   ArrowUp10,
@@ -220,9 +220,6 @@ export function AppSidebar({
               logoDarkModeHref={logo.darkModeHref}
             />
           </Link>
-          <div className="ml-auto flex min-w-0 items-center overflow-hidden group-data-[collapsible=icon]:hidden">
-            <VersionLabel state={versionState} />
-          </div>
         </div>
         {showDemoBadge && <DemoBadge />}
       </SidebarHeader>
@@ -236,7 +233,16 @@ export function AppSidebar({
             canCreateProjects={canCreateProjects}
           />
         )}
-        <NavMain items={navItems} />
+        <NavMain
+          items={navItems}
+          groupExtraContent={{
+            [RouteGroup.AcmeEnhancements]: (
+              <div className="px-2 pt-1 pb-2 group-data-[collapsible=icon]:hidden">
+                <VersionLabel state={versionState} />
+              </div>
+            ),
+          }}
+        />
         <div className="flex-1" />
         {activeNotifications.length > 0 && (
           <div className="flex flex-col gap-2 p-2">

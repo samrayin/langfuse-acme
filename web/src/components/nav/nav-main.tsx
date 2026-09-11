@@ -57,11 +57,15 @@ function NavItemContent({ item }: { item: NavMainItem }) {
 
 export function NavMain({
   items,
+  groupExtraContent,
 }: {
   items: {
     grouped: Partial<Record<RouteGroup, NavMainItem[]>> | null;
     ungrouped: NavMainItem[];
   };
+  /** Extra content rendered at the end of a specific group's menu, inside
+      its collapsible body (e.g. the version label under ACME Enhancements). */
+  groupExtraContent?: Partial<Record<RouteGroup, ReactNode>>;
 }) {
   // Keyed by group name; a group missing from the map is expanded by default.
   // Persisted so the layout a user settles on survives navigation and reloads.
@@ -141,6 +145,7 @@ export function NavMain({
                         </SidebarMenuItem>
                       ))}
                     </SidebarMenu>
+                    {groupExtraContent?.[group as RouteGroup]}
                   </SidebarGroupContent>
                 </CollapsibleContent>
               </SidebarGroup>

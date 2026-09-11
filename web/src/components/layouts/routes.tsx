@@ -35,6 +35,7 @@ import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcu
 import { useCommandMenu } from "@/src/features/command-k-menu/CommandMenuProvider";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { CloudStatusMenu } from "@/src/features/cloud-status-notification/components/CloudStatusMenu";
+import { AcmeContactSupportNavItem } from "@/src/components/nav/acme-contact-support-nav-item";
 import { type ProductModule } from "@/src/ee/features/ui-customization/productModuleSchema";
 
 export enum RouteSection {
@@ -216,6 +217,16 @@ export const ROUTES: Route[] = [
     projectRbacScopes: ["projectAuditLogs:read"],
     group: RouteGroup.AcmeEnhancements,
     section: RouteSection.Main,
+  },
+  {
+    // ACME addition: direct support contact, relocated here from the
+    // generic Support drawer (see IntroSection.tsx) so it's a first-class
+    // ACME Enhancements item rather than buried behind the Support button.
+    title: "Contact ACME Support",
+    pathname: "",
+    group: RouteGroup.AcmeEnhancements,
+    section: RouteSection.Main,
+    menuNode: <AcmeContactSupportNavItem />,
   },
   {
     // Keep Action required first in the secondary nav so it is not sandwiched
