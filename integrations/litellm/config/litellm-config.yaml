@@ -1,0 +1,57 @@
+# LiteLLM native config — template.
+#
+# Fill in the real model list for whichever providers are going live (see
+# README.md "Open decisions" #2), then apply as a ConfigMap or mount directly
+# — this file has no secrets in it, provider keys are referenced by env var
+# name only and come from the litellm-provider-keys Secret (see
+# ../k8s/secret.example.yaml).
+
+model_list:
+  # Anthropic — live day one, per "Open decisions" #2 (2026-09-11: only
+  # provider going live at first deploy).
+  - model_name: claude-sonnet
+    litellm_params:
+      model: anthropic/claude-sonnet-5
+      api_key: os.environ/ANTHROPIC_API_KEY
+
+  # OpenAI — configured-but-dormant. Uncomment once this provider is confirmed live.
+  # - model_name: gpt-4o
+  #   litellm_params:
+  #     model: openai/gpt-4o
+  #     api_key: os.environ/OPENAI_API_KEY
+
+  # Azure OpenAI — configured-but-dormant. Uncomment once this provider is confirmed live.
+  # - model_name: azure-gpt-4o
+  #   litellm_params:
+  #     model: azure/<deployment-name>
+  #     api_key: os.environ/AZURE_OPENAI_API_KEY
+  #     api_base: os.environ/AZURE_OPENAI_ENDPOINT
+  #     api_version: "2026-01-01-preview"
+
+general_settings:
+  # LiteLLM's own state (spend tracking, virtual keys) — points at a new
+  # schema/database on the existing psql-langfuse-bgqj server, not a new
+  # Postgres instance. Real value comes from the DATABASE_URL key in the
+  # litellm-provider-keys Secret.
+  database_url: os.environ/DATABASE_URL
+  master_key: os.environ/LITELLM_MASTER_KEY
+
+# Native Langfuse logging integration — routes LiteLLM's own usage data into
+# RAYIN's existing Observability section instead of a second dashboard.
+litellm_settings:
+  success_callback: ["langfuse"]
+  failure_callback: ["langfuse"]
+
+# Starter virtual keys — one per team/use case, per README.md "Open
+# decisions" #3 (2026-09-11: $10/key, confirmed). Created via the LiteLLM
+# Admin UI or API after the proxy is up, e.g.:
+#
+#   curl -X POST http://litellm.rayin-platform:4000/key/generate \
+#     -H "Authorization: Bearer $LITELLM_MASTER_KEY" \
+#     -H "Content-Type: application/json" \
+#     -d '{"key_alias": "chat-widget", "max_budget": 10, "models": ["claude-sonnet"]}'
+#
+#   curl -X POST http://litellm.rayin-platform:4000/key/generate \
+#     -H "Authorization: Bearer $LITELLM_MASTER_KEY" \
+#     -H "Content-Type: application/json" \
+#     -d '{"key_alias": "rayin-guardrails", "max_budget": 10, "models": ["claude-sonnet"]}'

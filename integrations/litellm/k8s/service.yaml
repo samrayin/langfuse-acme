@@ -1,0 +1,14 @@
+# ClusterIP only — no public ingress, same posture as rayin-guardrails. Every
+# consumer (chat widget, rayin-guardrails) is another pod in this cluster.
+apiVersion: v1
+kind: Service
+metadata:
+  name: litellm
+  namespace: rayin-platform
+spec:
+  type: ClusterIP
+  selector:
+    app: litellm
+  ports:
+    - port: 4000
+      targetPort: 4000
