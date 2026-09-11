@@ -54,6 +54,7 @@ import { useSession } from "next-auth/react";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { AcmeChatWidget } from "@/src/features/acme-enhancements/components/AcmeChatWidget";
+import { AcmeThemeStyleInjector } from "@/src/features/acme-enhancements/components/AcmeThemeStyleInjector";
 
 const DISMISSED_SIDEBAR_NOTIFICATIONS_KEY = "dismissed-sidebar-notifications";
 
@@ -311,7 +312,12 @@ export function AuthenticatedLayout({
                       survive route changes. */}
                   <InAppAgentWindowHost />
                   {typeof router.query.projectId === "string" ? (
-                    <AcmeChatWidget projectId={router.query.projectId} />
+                    <>
+                      <AcmeChatWidget projectId={router.query.projectId} />
+                      <AcmeThemeStyleInjector
+                        projectId={router.query.projectId}
+                      />
+                    </>
                   ) : null}
                 </SidebarInset>
               </div>

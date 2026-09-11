@@ -934,6 +934,45 @@ handing this to a first real customer.
 
 ---
 
+## 2026-09-11 — Live UI customization (accent color + top-bar background) + nav label fix
+
+**What:**
+- New **UI Customization** page under ACME Enhancements
+  (`web/src/features/acme-enhancements/pages/AcmeUiCustomizationPage.tsx`):
+  an owner/admin picks from 4 accent-color presets (Navy, Teal, Purple,
+  Forest Green) and 3 top-bar background presets (Plain, Soft tint,
+  Gradient), applied live for every user in the project — no redeploy.
+  Deliberately a fixed preset list, not a free color picker.
+- Stored in `Project.metadata` (a generic JSON column Langfuse already has)
+  under an `acmeTheme` key — **no database migration needed**. New
+  `acmeThemeRouter.ts` (`get`: any project member; `update`: `project:update`
+  scope, owners/admins only — same pattern as Audit Logs' RBAC gating).
+- Applied at runtime via `AcmeThemeStyleInjector` (mounted in
+  `AuthenticatedLayout.tsx`, next to the AI chat widget): injects a
+  `<style>` override for `--primary`/`--link`/`--link-hover`/`--ring`
+  based on the stored preset. No injection risk — the stored value is
+  always one of 4 fixed, server-validated preset keys, never free-form
+  text. `PageHeader`'s top strip reads the same setting
+  (`useAcmeHeaderBackgroundClassName`) for its background tint/gradient,
+  computed from the same `--primary` variable so it always matches
+  whichever accent color is active.
+- This also supersedes the last two color tweaks (darkening the teal, then
+  switching to navy) — both are now just the *default* preset rather than
+  a hardcoded value; today's earlier `globals.css` edits stay as that
+  default.
+- **Nav label fix:** the collapsible sidebar groups' `hover:text-sidebar-foreground`
+  class (added when the collapse/expand feature was built) made whichever
+  group the cursor was resting on look brighter/bolder than the others —
+  reported as "ACME Enhancements looks like a different font." Removed;
+  every group label now renders identically regardless of hover state.
+
+**Why:** direct ask — rather than ACME manually editing CSS and redeploying
+every time the color preference changes (three redeploys happened today
+alone chasing this), an admin can now change it themselves, live, from
+inside the app.
+
+---
+
 ## Outstanding, not yet done
 
 - **Terraform doesn't manage the live image configuration yet.** The remote state

@@ -21,6 +21,7 @@ import {
   Clock,
   Beaker,
   ShieldCheck,
+  Palette,
 } from "lucide-react";
 import { type ReactNode } from "react";
 import { type Entitlement } from "@/src/features/entitlements/constants/entitlements";
@@ -227,6 +228,18 @@ export const ROUTES: Route[] = [
     group: RouteGroup.AcmeEnhancements,
     section: RouteSection.Main,
     menuNode: <AcmeContactSupportNavItem />,
+  },
+  {
+    // ACME addition: lets an owner/admin pick accent color + top-bar
+    // background from a fixed preset list, applied live for the whole
+    // project (see acmeThemeRouter.ts). Nav item itself is owner/admin-only
+    // (project:update) even though the applied theme is visible to everyone.
+    title: "UI Customization",
+    pathname: `/project/[projectId]/acme-enhancements/ui-customization`,
+    icon: Palette,
+    projectRbacScopes: ["project:update"],
+    group: RouteGroup.AcmeEnhancements,
+    section: RouteSection.Main,
   },
   {
     // Keep Action required first in the secondary nav so it is not sandwiched

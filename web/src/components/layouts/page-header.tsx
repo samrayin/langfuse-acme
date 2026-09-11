@@ -25,6 +25,7 @@ import {
   APP_SHELL_CHROME_ROW_CLASS,
   APP_SHELL_CHROME_ROW_TEST_ID,
 } from "@/src/components/layouts/app-shell-chrome";
+import { useAcmeHeaderBackgroundClassName } from "@/src/features/acme-enhancements/theme/useAcmeHeaderBackgroundClassName";
 
 const containerLayoutClassName =
   "lg:mx-auto lg:w-full lg:max-w-screen-lg lg:px-8 xl:max-w-screen-xl 2xl:max-w-[1400px]";
@@ -77,6 +78,7 @@ const PageHeader = ({
 }: PageHeaderProps) => {
   const hasAppSidebar = useHasAppSidebar();
   const envLabel = useEnvLabel();
+  const acmeHeaderBackgroundClassName = useAcmeHeaderBackgroundClassName();
   // The sidebar trigger + brand mark only make sense where a real AppSidebar
   // exists to toggle/mirror. On the sidebar-less MinimalLayout (public/shared
   // trace and session views) show the page's own leadingControl instead — no
@@ -85,7 +87,8 @@ const PageHeader = ({
   return (
     <div
       className={cn([
-        "top-banner-offset bg-background sticky z-30 w-full border-b shadow-xs",
+        "top-banner-offset sticky z-30 w-full border-b shadow-xs",
+        acmeHeaderBackgroundClassName,
         className,
       ])}
       id="page-header"

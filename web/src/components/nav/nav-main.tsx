@@ -118,7 +118,7 @@ export function NavMain({
             >
               <SidebarGroup>
                 <CollapsibleTrigger asChild>
-                  <SidebarGroupLabel className="cursor-pointer hover:text-sidebar-foreground">
+                  <SidebarGroupLabel className="cursor-pointer">
                     {group}
                     <ChevronRight className="ml-auto size-3.5 shrink-0 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
                   </SidebarGroupLabel>
