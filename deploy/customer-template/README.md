@@ -86,6 +86,52 @@ see `../azure/versions.tf` and `../azure/README.md`).
 - `terraform.tfvars.example` → copy to `terraform.tfvars` (gitignored)
 - `backend.hcl.example` → copy to `<customer>.backend.hcl` (gitignored)
 
+## Air-gapped / no-internet customer deployments
+
+Everything in this deployment runs **inside the customer's own AKS cluster**
+once it's up — Postgres, Redis, ClickHouse, and the Langfuse app itself all
+have zero ongoing internet dependency after install. But getting there the
+first time pulls several things from the public internet automatically,
+none of which come from ACME's own private registry by default. For a truly
+offline/air-gapped customer, all of the following need to be pre-mirrored
+into a private registry the customer's network *can* reach, before the
+first `terraform init`/`apply`:
+
+1. **Terraform providers** (`terraform init`, before anything else runs) —
+   `azurerm`, `kubernetes`, `helm`, `random`, `tls`, `time`, all from
+   `registry.terraform.io/hashicorp/*` (exact versions/constraints in
+   `versions.tf`).
+2. **The `Azure/naming/azurerm` Terraform module** (also at `terraform init`) —
+   from the public Terraform Registry, pinned to `0.4.2`
+   (`../../infra/langfuse-terraform-azure/naming.tf`). Generates the
+   randomized, collision-proof resource names every deployment uses.
+3. **Three Helm charts** (`terraform apply`):
+   - the Langfuse chart itself, from `https://langfuse.github.io/langfuse-k8s`
+     (version set by `langfuse_helm_chart_version`)
+   - `cert-manager`, from `https://charts.jetstack.io` (version set by
+     `cert_manager_chart_version`) — issues internal certificates for the
+     ClickHouse operator's webhooks
+   - the ClickHouse Operator, from `oci://ghcr.io/clickhouse` (version set
+     by `clickhouse_operator_chart_version`) — the tool that actually runs
+     ClickHouse inside the cluster
+4. **Every container image those three charts reference** — the ClickHouse
+   database image itself, cert-manager's own running pods, the
+   clickhouse-operator's own pod, plus the Langfuse web/worker images
+   (already ACME's own images in `acmelangfuseacr` by this template's
+   defaults — only the three items above and ClickHouse's own image are
+   still pulled from public sources even with ACME's images set).
+
+None of this is set up yet — Terraform and Helm both pull straight from the
+public internet as of this template. Before handing this template to a
+genuinely offline customer: mirror all of the above into a registry their
+network can reach (Azure Container Registry supports `az acr import` for
+container images and OCI Helm charts directly from a source registry; the
+Terraform provider/module mirror needs a
+[Terraform provider network mirror](https://developer.hashicorp.com/terraform/cli/config/config-file#provider-installation)
+or a private Terraform Registry), then point `versions.tf`'s
+`required_providers` and each `helm_release`'s `repository` at the mirrored
+locations instead of the public ones.
+
 ## What's already handled for you
 
 - **Resource naming never collides** between customers or with ACME's own
