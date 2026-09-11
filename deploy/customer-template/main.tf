@@ -17,6 +17,11 @@ module "langfuse" {
 
   use_encryption_key = var.use_encryption_key
 
+  # Every customer gets their own registry in their own subscription -- see
+  # README.md's "Registry strategy" section. Not exposed as a variable:
+  # every RayIn customer deployment needs one, it's not an optional choice.
+  create_container_registry = true
+
   virtual_network_address_prefix    = var.virtual_network_address_prefix
   aks_subnet_address_prefix         = var.aks_subnet_address_prefix
   app_gateway_subnet_address_prefix = var.app_gateway_subnet_address_prefix

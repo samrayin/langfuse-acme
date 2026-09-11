@@ -1042,6 +1042,65 @@ branch rebases onto this new `main` separately, in its own session.
 
 ---
 
+## 2026-09-12 — RayIn branding requirement + per-customer container registry strategy
+
+**What:** `deploy/customer-template/` exists to deploy RayIn (ACME's product)
+for a paying customer, not vanilla Langfuse — but nothing in it said so, and
+its image-variable defaults pointed straight at `acmelangfuseacr.azurecr.io`
+(ACME's own internal dev registry, in ACME's subscription). A customer's
+AKS cluster has no access to that registry, and the template's own
+documented escape hatch for a registry-access failure (`null`, falling back
+to the chart's default) silently ships plain upstream Langfuse with zero
+ACME/RayIn branding — a real gap for a commercial product, caught while
+reviewing the template's disaster-recovery story.
+
+Fixed with a proper per-customer registry, not a workaround:
+
+- **`infra/langfuse-terraform-azure/registry.tf`** (new) — an optional
+  `azurerm_container_registry`, gated behind a new `create_container_registry`
+  variable (default `false`, so ACME's own live deployment, which manages
+  `acmelangfuseacr` out-of-band, is completely unaffected), plus an `AcrPull`
+  role assignment onto the AKS cluster's kubelet identity. New
+  `container_registry_login_server` output in `outputs.tf`.
+- **`deploy/customer-template/main.tf`** sets `create_container_registry = true`
+  unconditionally — every RayIn customer deployment gets its own registry,
+  entirely inside their own subscription. No cross-tenant access into
+  ACME's registry, ever.
+- **Onboarding is now a three-step sequence**, documented in full in the
+  template's `README.md` ("Registry strategy for customer deployments"):
+  (1) first `apply` with the four image variables left `null` — builds the
+  environment, including the empty registry, pods briefly on plain upstream
+  Langfuse; (2) `az acr import` the RayIn images from `acmelangfuseacr` into
+  the customer's new registry, run from a session with access to ACME's own
+  registry; (3) point `web_image_repository`/`worker_image_repository` at
+  the customer's own registry's login server and re-apply — pods roll over
+  to full RayIn branding. Re-running step 2 with a bumped tag is also the
+  upgrade path for that customer going forward.
+- Added a "Branding" section to the template's `README.md` spelling out
+  that branding is compiled into the image at build time, Terraform has no
+  branding variable, and the image-variable defaults must never be pointed
+  at `acmelangfuseacr.azurecr.io` directly. Fixed the same stale guidance in
+  `terraform.tfvars.example`.
+
+**Why:** direct ask — this template will eventually be run against a real
+customer, and the branding requirement (ACME logo + "RAYIN" wordmark) needs
+to survive that without depending on whoever runs it remembering not to
+take the `null` shortcut.
+
+**Verification:** `terraform validate` clean on both
+`infra/langfuse-terraform-azure` and `deploy/customer-template` (only
+pre-existing, unrelated deprecation warnings — `kubernetes_secret`,
+`kubernetes_namespace`, `public_network_access_enabled`). Not yet exercised
+against a real Azure subscription — see "Outstanding" below.
+
+**Branch note:** built on a dedicated `feat/rayin-branding-customer-registry`
+branch off `main` (post-v4.35.0) — this was briefly, mistakenly started as
+uncommitted working-tree edits on the in-progress
+`feat/litellm-gateway-chat-integration` branch (which predates the v4.35.0
+merge) before being moved; that branch's own commits were never touched.
+
+---
+
 ## Outstanding, not yet done
 
 - **Terraform state reconciliation — paused 2026-09-11, ~half done, safe to
@@ -1124,3 +1183,10 @@ branch rebases onto this new `main` separately, in its own session.
   of upstream Langfuse's history (tag `v4.33.0`), with every ACME commit cherry-picked
   on top individually. A future upstream version bump can use a normal `git merge`/
   rebase against the next upstream tag instead of manually replaying patches.
+- **RayIn customer registry onboarding — not yet exercised against a real
+  Azure subscription.** The three-step sequence added 2026-09-12 (apply with
+  images unset → `az acr import` the branded images into the customer's new
+  registry → re-apply pointing at it) is `terraform validate`-clean but has
+  never actually been run end-to-end, since no real customer deployment
+  exists yet. First real customer onboarding should treat this as the first
+  live test of that sequence, not an already-proven path.
