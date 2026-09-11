@@ -128,10 +128,23 @@ EOT
     { name = "REDIS_KEY_PREFIX", value = "{langfuse}" },
   ]
 
+  # Two separate loops (not concat(local.redis_cluster_env, var.additional_env))
+  # deliberately: local.redis_cluster_env's plain {name, value} objects and
+  # var.additional_env's {name, value=optional, valueFrom=optional} objects
+  # are different HCL object types, and concat()-ing them does not reliably
+  # widen the plain objects to have a null valueFrom attribute -- it fails
+  # at plan time with "This object does not have an attribute named
+  # valueFrom" (found live during ACME's Terraform state reconciliation,
+  # 2026-09-11). Each loop below only ever touches attributes its own list's
+  # element type actually has, so there's nothing to unify.
   additional_env_values = <<EOT
 langfuse:
   additionalEnv:
-%{for env in concat(local.redis_cluster_env, var.additional_env)}
+%{for env in local.redis_cluster_env}
+  - name: ${env.name}
+    value: "${env.value}"
+%{endfor}
+%{for env in var.additional_env}
   - name: ${env.name}
 %{if env.value != null}
     value: "${env.value}"

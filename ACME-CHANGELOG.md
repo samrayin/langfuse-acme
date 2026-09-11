@@ -1005,6 +1005,25 @@ inside the app.
   from): `terraform init`, `bash import-state.sh` from `deploy/azure/`,
   then `terraform plan` — must show **0 to add, 0 to change, 0 to destroy**
   before this item is actually closed. Do not `apply` until that's true.
+  **Update, same day:** both role grants applied successfully and the first
+  real `terraform plan` run surfaced a genuine bug this reconciliation
+  effort exists to catch — `additional_env_values` in
+  `infra/langfuse-terraform-azure/langfuse.tf` used `concat(local.redis_cluster_env,
+  var.additional_env)` to merge the Redis-fix env vars (added earlier the
+  same day, see "Customer deployment template + Redis fix promoted into the
+  module") with a caller's own `additional_env`. Terraform doesn't reliably
+  widen `local.redis_cluster_env`'s plain `{name, value}` objects to the
+  richer `{name, value=optional, valueFrom=optional}` shape `var.additional_env`
+  declares, so `concat()` produced elements the template's
+  `%{if env.valueFrom != null}` check couldn't evaluate — hard failure on
+  every `plan`/`apply`/`import` against this module, for ACME's own
+  deployment **and** the customer template (same module). Never reached
+  production (nothing had run `apply` against this module yet), but would
+  have broken a real customer's first deployment outright. Fixed by
+  splitting into two separate `%{for}` loops instead of `concat()`, so
+  neither loop ever touches an attribute its own list's elements don't
+  have. Import script re-run pending against the fixed module; result to
+  follow.
 - **Cloud Shell storage mount reliability.** The `$HOME` mount failed at least
   twice in one session (once losing all local files, once again on a later
   reconnect). Root cause not investigated (still worth a closer look at whether
