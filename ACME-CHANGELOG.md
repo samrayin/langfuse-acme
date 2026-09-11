@@ -348,7 +348,7 @@ deserves a human at the keyboard, not an overnight unattended change.
 
 1. Point the module at this fork (replaces the pinned upstream commit ref):
    ```bash
-   sed -i 's|source = "github.com/langfuse/langfuse-terraform-azure?ref=e939144c0a70dcc3de32f321ace86d34ee0d80c9"|source = "git::https://github.com/samrayin/langfuse-acme.git//infra/langfuse-terraform-azure?ref=main"|' ~/main.tf
+   sed -i 's|source = "github.com/langfuse/langfuse-terraform-azure?ref=e939144c0a70dcc3de32f321ace86d34ee0d80c9"|source = "git::https://github.com/samrayin/ACME-Rayin.git//infra/langfuse-terraform-azure?ref=main"|' ~/main.tf
    ```
 2. Add the four new image-override arguments inside the existing `module "langfuse" { ... }` block in `~/main.tf` (anywhere inside the block, e.g. right after the `app_version = "4.17.0"` line):
    ```hcl
@@ -391,7 +391,8 @@ commit (`e939144c0a70dcc3de32f321ace86d34ee0d80c9` — the exact commit `main.tf
 actually pins) instead of tag `0.4.5`. Also made the `samrayin/langfuse-acme`
 GitHub repo public, since Terraform's `git::https://` module source can't
 authenticate to a private repo non-interactively and Cloud Shell has no stored
-GitHub credentials for it.
+GitHub credentials for it. (Repo since renamed to `samrayin/ACME-Rayin` on
+2026-09-11 — see "Repository rename" below.)
 
 **Why:** Live, caught by `terraform init` itself, not by review. The earlier
 "Terraform module fork" entry above assumed tag `0.4.5` matched the pinned commit
@@ -823,6 +824,27 @@ langfuse` — new pod healthy, clean startup logs, no errors.
 **Versioning established this entry:** tagged `acme-v4.33.0.1` at this commit —
 the first tag in this fork's history. See "Versioning" at the top of this file for
 the convention now in effect for every future deployed change.
+
+---
+
+## 2026-09-11 — Repository rename: `langfuse-acme` → `ACME-Rayin`
+
+**What:** GitHub repo renamed from `samrayin/langfuse-acme` to `samrayin/ACME-Rayin`
+(`gh repo rename`, owner unchanged). Local `origin` remote updated to match. Both
+hardcoded references to the old name (`ACME-CHANGELOG.md`'s Cloud Shell `sed`
+handoff command, `infra/langfuse-terraform-azure/ACME-FORK-README.md`'s module
+`source` example) updated. No other code, config, or CI reference in the repo
+named it — confirmed via a full-repo search for `langfuse-acme` and `samrayin`.
+GitHub auto-redirects the old URL (both the web UI and `git clone`/`fetch`/`git::`
+module sources) indefinitely for a renamed repo, so nothing broke in the interim,
+but new work should use the new URL going forward.
+
+**Not automatically fixed — needs manual action:** if the live Cloud Shell
+`~/main.tf` (see "Exact commands to run in Cloud Shell" above) still has the old
+`git::https://github.com/samrayin/langfuse-acme.git//...` module source baked in
+from that original handoff, it will keep working via GitHub's redirect but should
+be updated to `ACME-Rayin` next time that file is touched — same one-line `sed`
+pattern as before, just the new repo name.
 
 ---
 

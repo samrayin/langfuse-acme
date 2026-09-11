@@ -54,7 +54,7 @@ new variables.
 
 ```hcl
 module "langfuse" {
-  source = "git::https://github.com/samrayin/langfuse-acme.git//infra/langfuse-terraform-azure?ref=main"
+  source = "git::https://github.com/samrayin/ACME-Rayin.git//infra/langfuse-terraform-azure?ref=main"
 
   # ... existing required variables (domain, etc.) ...
 
