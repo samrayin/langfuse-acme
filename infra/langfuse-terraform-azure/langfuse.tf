@@ -108,10 +108,30 @@ langfuse:
       name: ${kubernetes_secret.langfuse.metadata[0].name}
       key: encryption-key
 EOT
-  additional_env_values = length(var.additional_env) == 0 ? "" : <<EOT
+  # Azure Managed Redis's clustering_policy is hardcoded to "EnterpriseCluster"
+  # (see redis.tf) for every deployment of this module: keys ARE hash-slot-
+  # sharded, but the OSS `CLUSTER SLOTS` topology-discovery command ioredis's
+  # native Cluster client needs is blocked on this policy ("ERR command is
+  # not allowed"), so Langfuse's own REDIS_CLUSTER_ENABLED=true path can't be
+  # used against it. Fix: stay on the simple single-node client
+  # (REDIS_CLUSTER_ENABLED=false) and force every key onto one hash slot via
+  # a hash-tag-wrapped REDIS_KEY_PREFIX. Applies to every deployment of this
+  # module unconditionally -- not something a caller opts into via
+  # var.additional_env, since every deployment hits the same clustering
+  # policy. Placed first in the merged list below so a caller's own
+  # var.additional_env can still add unrelated env vars via the same
+  # mechanism without a second `additionalEnv:` values block silently
+  # replacing this one (Helm merges values-file lists by replacement, not
+  # by append).
+  redis_cluster_env = [
+    { name = "REDIS_CLUSTER_ENABLED", value = "false" },
+    { name = "REDIS_KEY_PREFIX", value = "{langfuse}" },
+  ]
+
+  additional_env_values = <<EOT
 langfuse:
   additionalEnv:
-%{for env in var.additional_env}
+%{for env in concat(local.redis_cluster_env, var.additional_env)}
   - name: ${env.name}
 %{if env.value != null}
     value: "${env.value}"

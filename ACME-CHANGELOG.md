@@ -883,6 +883,57 @@ commit history for the exact build/deploy run.
 
 ---
 
+## 2026-09-11 — Customer deployment template + Redis fix promoted into the module
+
+**What:** Two changes, both toward "sell this to customers without risking
+ACME's own environment":
+
+1. **New `deploy/customer-template/`** — a reusable, value-free root config
+   (mirrors `deploy/azure/` structurally) for deploying a customer's own,
+   fully independent Langfuse-on-Azure environment: their own subscription,
+   domain, network ranges, resource names, and Terraform state (recommended
+   setup: a dedicated state storage account in the *customer's own*
+   subscription, never ACME's — see the template's README for the one-time
+   setup command). Filling in and running it produces a deployment that
+   cannot read, write, or collide with ACME's own environment or another
+   customer's, by construction: separate state, separate subscription,
+   Azure-naming-module-guaranteed unique resource names even with identical
+   `name` values, and brand-new randomly generated secrets per deployment
+   (the module already worked this way — no changes needed there).
+2. **Redis Cluster fix promoted from ACME's root config into the module
+   itself** (`infra/langfuse-terraform-azure/langfuse.tf`) — it was
+   previously only applied via `deploy/azure/main.tf`'s `additional_env`,
+   meaning every future customer would have silently hit and had to
+   rediscover the same CROSSSLOT production issue ACME hit, since every
+   deployment of this module provisions Azure Managed Redis with the same
+   hardcoded `EnterpriseCluster` clustering policy (`redis.tf`). Now
+   applies automatically to every deployment. Required folding it into the
+   same `additionalEnv` Helm values list a caller's own `var.additional_env`
+   uses (via `concat()`), rather than a separate values block — Helm
+   replaces list-type values wholesale rather than merging them across
+   values files, so two separate `additionalEnv:` blocks would have caused
+   whichever was applied last to silently wipe out the other.
+   `deploy/azure/main.tf`'s now-redundant `additional_env` entry for this
+   removed.
+
+**Why:** direct ask — the user wants ACME's own environment eventually
+fully captured in Terraform (separate, paused reconciliation effort — see
+"Outstanding" below) *and* an independent way to deploy the same product
+for a paying customer with their own IP ranges, names, and secrets, without
+ACME operating both from the same account/state. Chose "ACME stays in
+control" (each customer's filled-in config is a private, ACME-managed
+folder run against the customer's own subscription) over a fully
+self-service customer-run template, as the simpler starting point.
+
+**Not yet done:** no real customer exists yet, so this produced a template
+only — nothing has been filled in or applied anywhere. `terraform validate`
+against the template hasn't been run (no local Terraform install on the
+machine this was built from this session — see "Outstanding" below);
+worth a quick check next time Terraform is available (Cloud Shell) before
+handing this to a first real customer.
+
+---
+
 ## Outstanding, not yet done
 
 - **Terraform doesn't manage the live image configuration yet.** The remote state

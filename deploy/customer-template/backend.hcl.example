@@ -1,0 +1,13 @@
+# Copy this file to <customer-name>.backend.hcl and fill in a dedicated
+# Terraform state storage account IN THIS CUSTOMER'S OWN AZURE SUBSCRIPTION
+# (recommended -- see README.md for why, and the one-time setup command to
+# create it). Never committed -- this folder's .gitignore blocks anything
+# matching *.backend.hcl except this .example file.
+#
+# Used at init time:
+#   terraform init -backend-config=<customer-name>.backend.hcl
+
+resource_group_name  = "rg-langfuse-tfstate"
+storage_account_name = "st<customername>tfstate" # must be globally unique across all of Azure
+container_name        = "tfstate"
+key                    = "langfuse.tfstate"

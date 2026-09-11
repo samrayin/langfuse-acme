@@ -1,0 +1,45 @@
+# Copy this file to terraform.tfvars and fill in this customer's real
+# values. terraform.tfvars is gitignored in this folder -- it must never be
+# committed, since it will contain this customer's real domain, subscription
+# ID, and network layout.
+#
+# Only the values below have no safe default and MUST be set. Everything
+# else in variables.tf has a working default copied from ACME's own
+# deployment -- uncomment and override only what's actually different for
+# this customer.
+
+azure_subscription_id = "00000000-0000-0000-0000-000000000000" # this customer's own Azure subscription
+domain                 = "langfuse.customer-domain.com"          # this customer's own domain
+name                    = "langfuse"                              # resource name prefix; doesn't need to be globally unique
+
+# --- Everything below is optional -- only uncomment what this customer needs different ---
+
+# location = "westeurope"
+
+# virtual_network_address_prefix    = "10.224.0.0/12"
+# aks_subnet_address_prefix         = "10.224.0.0/16"
+# app_gateway_subnet_address_prefix = "10.225.0.0/16"
+# db_subnet_address_prefix          = "10.226.0.0/24"
+# redis_subnet_address_prefix       = "10.226.1.0/24"
+# storage_subnet_address_prefix     = "10.226.2.0/24"
+
+# node_pool_vm_size   = "Standard_D8s_v6"
+# node_pool_min_count = 2
+# node_pool_max_count = 10
+
+# postgres_sku_name   = "GP_Standard_D2s_v3"
+# postgres_storage_mb = 32768
+
+# redis_sku_name           = "Balanced_B3"
+# redis_high_availability = true
+
+# Set to null (or omit the override) to run plain upstream Langfuse instead
+# of ACME's customized build:
+# web_image_repository    = "acmelangfuseacr.azurecr.io/langfuse-web"
+# web_image_tag            = "acme-dev"
+# worker_image_repository = "acmelangfuseacr.azurecr.io/langfuse-worker"
+# worker_image_tag         = "acme-dev"
+
+# additional_env = [
+#   { name = "ANTHROPIC_API_KEY", value = "..." },
+# ]

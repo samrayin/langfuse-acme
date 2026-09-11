@@ -1,0 +1,12 @@
+# Real per-customer values must never be committed -- only the .example
+# templates belong in this repo.
+*.tfvars
+!*.tfvars.example
+*.backend.hcl
+!*.backend.hcl.example
+
+# Local Terraform working files
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
