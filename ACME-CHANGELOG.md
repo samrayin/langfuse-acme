@@ -979,51 +979,64 @@ inside the app.
 
 ## Outstanding, not yet done
 
-- **Terraform doesn't manage the live image configuration yet — reconciliation
-  in progress, 2026-09-11.** `deploy/azure/import-state.sh` now exists: a
-  self-contained script that resolves every one of the ~65 live resources'
-  real Azure/Kubernetes/Helm identifiers and runs `terraform import` for each
-  (state-only — never touches the live resources, never runs `apply`).
-  Sensitive resources (`random_password`/`random_bytes` backing the Postgres
-  password, NextAuth secret, encryption key, ClickHouse password) are
-  imported by their real current live value, read from the running
-  Kubernetes secret at script run-time — never a freshly generated one.
-  **Blocked on two one-time role grants** (Claude Code's safety classifier
-  blocks IAM changes; run these once, from an account with Owner/User Access
-  Administrator on the relevant scopes):
-  ```bash
-  az role assignment create \
-    --assignee "740add8c-c763-430a-8366-e78c85f601e5" \
-    --role "Storage Blob Data Contributor" \
-    --scope "/subscriptions/87f4e6be-6585-4a1a-93f3-1a896cf644b9/resourceGroups/rg-langfuse-tfstate/providers/Microsoft.Storage/storageAccounts/stacmelftfstate"
-  az role assignment create \
-    --assignee "740add8c-c763-430a-8366-e78c85f601e5" \
-    --role "Key Vault Secrets User" \
-    --scope "/subscriptions/87f4e6be-6585-4a1a-93f3-1a896cf644b9/resourceGroups/rg-langfuse/providers/Microsoft.KeyVault/vaults/kv-langfuse-bgqj"
-  ```
-  Then, in Cloud Shell (no local Terraform on the machine this was built
-  from): `terraform init`, `bash import-state.sh` from `deploy/azure/`,
-  then `terraform plan` — must show **0 to add, 0 to change, 0 to destroy**
-  before this item is actually closed. Do not `apply` until that's true.
-  **Update, same day:** both role grants applied successfully and the first
-  real `terraform plan` run surfaced a genuine bug this reconciliation
-  effort exists to catch — `additional_env_values` in
-  `infra/langfuse-terraform-azure/langfuse.tf` used `concat(local.redis_cluster_env,
-  var.additional_env)` to merge the Redis-fix env vars (added earlier the
-  same day, see "Customer deployment template + Redis fix promoted into the
-  module") with a caller's own `additional_env`. Terraform doesn't reliably
-  widen `local.redis_cluster_env`'s plain `{name, value}` objects to the
-  richer `{name, value=optional, valueFrom=optional}` shape `var.additional_env`
-  declares, so `concat()` produced elements the template's
-  `%{if env.valueFrom != null}` check couldn't evaluate — hard failure on
-  every `plan`/`apply`/`import` against this module, for ACME's own
-  deployment **and** the customer template (same module). Never reached
-  production (nothing had run `apply` against this module yet), but would
-  have broken a real customer's first deployment outright. Fixed by
-  splitting into two separate `%{for}` loops instead of `concat()`, so
-  neither loop ever touches an attribute its own list's elements don't
-  have. Import script re-run pending against the fixed module; result to
-  follow.
+- **Terraform state reconciliation — paused 2026-09-11, ~half done, safe to
+  leave as-is.** Goal: get `deploy/azure`'s Terraform state to recognize the
+  ~65 already-running resources in `rg-langfuse`, so `terraform plan` shows
+  zero diff and the config becomes a genuine "rebuild from scratch if this
+  is ever lost" safety net rather than just documentation.
+
+  **What's done:** `deploy/azure/import-state.sh` resolves every resource's
+  real Azure/Kubernetes/Helm identifier and runs `terraform import` for it
+  — state-only, `apply` never run against this module. Both required
+  one-time role grants (Storage Blob Data Contributor on the state backend,
+  Key Vault Secrets User on `kv-langfuse-bgqj`) were applied successfully.
+  Along the way this caught and fixed several real, previously-undetected
+  bugs — worth keeping in mind since they'd have hit a real customer's
+  first deployment too, not just ACME's own reconciliation:
+  - A `concat()` type-unification bug in `langfuse.tf`'s `additional_env_values`
+    that broke *every* `plan`/`apply`/`import` against this module (fixed:
+    two separate `%{for}` loops instead of one merged `concat()`).
+  - Import ordering (AKS must import before anything else, since the
+    kubernetes/helm providers are configured from its outputs), DNS
+    zone/record casing, the storage container import ID format on
+    AzureRM v5, a wrong Postgres database name (5 databases exist on the
+    server; the config wants `psqldb-langfuse`, not the same-named but
+    unrelated `langfuse` database), missing `[0]` indices on two
+    conditional `helm_release` resources, and `xxd` not being available in
+    Cloud Shell by default. All fixed in `import-state.sh`.
+
+  **Where it stopped, and why:** the final `terraform plan` reached **37 to
+  add, 5 to change, 27 to destroy** (down from 70 to add at the start —
+  most of the environment is now cleanly reconciled). The remaining gap is
+  dominated by a structural limitation, not a bug: `terraform import` for
+  `random_password`/`random_string` resources sets their **value**
+  correctly (imported from the real live secret/name) but cannot
+  reconstruct **generation-constraint arguments** (`min_lower`,
+  `min_numeric`, `min_upper`, `special`, `numeric`, `upper`) that aren't
+  part of the import ID — these land in state at their schema defaults,
+  which don't match what `postgres.tf`/`clickhouse.tf`/`tls.tf`/the naming
+  module declare, and since those arguments are `ForceNew`, the mismatch
+  shows as "must be replaced". This affects 5 resources directly
+  (`random_password.postgres_password`, `random_password.clickhouse_password`,
+  `random_string.key_vault_postfix`, and the naming module's
+  `random_string.first_letter`/`main`) and cascades into everything whose
+  *name* is derived from that random suffix (the Key Vault, Storage
+  Account, and their private-networking resources) wanting replacement too.
+  No amount of re-running `import-state.sh` fixes this — it needs either a
+  direct, surgical edit of the state file's stored attributes for those 5
+  resources (not yet done), or accepting the cosmetic diff indefinitely.
+
+  **Why this is safe to leave exactly as-is:** nothing above was ever
+  applied — state was only ever read and selectively written via
+  `terraform import`, never `apply`. The config was already an accurate,
+  usable disaster-recovery blueprint before this reconciliation started
+  (a `terraform apply` from a genuinely empty state would still rebuild the
+  whole environment correctly); reconciling the *current* live resources
+  into state only matters for safely managing changes to what's already
+  running, which isn't urgent. Do not run `terraform apply` against this
+  state until the 5-resource gap above is closed — it would attempt to
+  destroy and recreate the live Key Vault, Storage Account, and both
+  passwords.
 - **Cloud Shell storage mount reliability.** The `$HOME` mount failed at least
   twice in one session (once losing all local files, once again on a later
   reconnect). Root cause not investigated (still worth a closer look at whether
