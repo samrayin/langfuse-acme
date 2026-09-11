@@ -238,8 +238,11 @@ echo "=== Kubernetes / Helm ==="
 import module.langfuse.kubernetes_namespace.langfuse "langfuse"
 import module.langfuse.kubernetes_secret.langfuse "langfuse/langfuse"
 import module.langfuse.helm_release.langfuse "langfuse/langfuse"
-import module.langfuse.helm_release.cert_manager "cert-manager/cert-manager"
-import module.langfuse.helm_release.clickhouse_operator "clickhouse-operator-system/clickhouse-operator"
+# cert_manager and clickhouse_operator both use `count = local.deploy_clickhouse
+# ? 1 : 0` (clickhouse.tf) -- their real addresses need the [0] index, or
+# Terraform reports "Configuration for import target does not exist".
+import 'module.langfuse.helm_release.cert_manager[0]' "cert-manager/cert-manager"
+import 'module.langfuse.helm_release.clickhouse_operator[0]' "clickhouse-operator-system/clickhouse-operator"
 
 echo "=== Sensitive: random_password / random_bytes (imported by their real live value) ==="
 # Pulled from the running Kubernetes secret, never freshly generated --
@@ -258,13 +261,22 @@ import module.langfuse.random_bytes.nextauth_secret "$NEXTAUTH_B64"
 # random_bytes.encryption_key has count=1 (use_encryption_key=true) -- index it.
 # The kubernetes_secret stores it hex-encoded; random_bytes imports by its
 # base64 value, so re-derive that from the hex before importing.
-ENCRYPTION_B64=$(echo -n "$ENCRYPTION_HEX" | xxd -r -p | base64 -w0)
+# `xxd` isn't installed in Azure Cloud Shell by default -- python3 is, so
+# use that for the hex-to-base64 conversion instead (found live during
+# ACME's own reconciliation run).
+ENCRYPTION_B64=$(python3 -c "import sys, base64; print(base64.b64encode(bytes.fromhex(sys.argv[1])).decode())" "$ENCRYPTION_HEX")
 import 'module.langfuse.random_bytes.encryption_key[0]' "$ENCRYPTION_B64"
 
 echo ""
 echo "=== Excluded on purpose ==="
 echo "  time_sleep.key_vault_rbac_propagation -- no real-world identity,"
 echo "  harmless to let Terraform recreate this one-time wait on next apply."
+echo "  azurerm_network_ddos_protection_plan.this[0] -- genuinely does not"
+echo "  exist live (confirmed via 'az resource list', 2026-09-11) despite"
+echo "  var.use_ddos_protection = true wanting it. Nothing to import here --"
+echo "  the final 'terraform plan' will legitimately show this 1 resource"
+echo "  as 'to add'. That's real drift to fix separately, not a bug in this"
+echo "  script."
 
 echo ""
 echo "=== Done. Now run: terraform plan ==="
