@@ -979,14 +979,32 @@ inside the app.
 
 ## Outstanding, not yet done
 
-- **Terraform doesn't manage the live image configuration yet.** The remote state
-  backend and root config now exist (see "Backup & restore: remote Terraform state"
-  below), but the ~65 live resources in `rg-langfuse` are not yet reconciled into
-  that state via `import` blocks. Until that's done, `terraform plan` against
-  `deploy/azure/` will want to create everything from scratch — do not `apply`.
-  Once reconciled, confirm `terraform plan` shows zero diff against what's actually
-  running (it should, since the live Helm values already match what the config in
-  `deploy/azure/main.tf` sets).
+- **Terraform doesn't manage the live image configuration yet — reconciliation
+  in progress, 2026-09-11.** `deploy/azure/import-state.sh` now exists: a
+  self-contained script that resolves every one of the ~65 live resources'
+  real Azure/Kubernetes/Helm identifiers and runs `terraform import` for each
+  (state-only — never touches the live resources, never runs `apply`).
+  Sensitive resources (`random_password`/`random_bytes` backing the Postgres
+  password, NextAuth secret, encryption key, ClickHouse password) are
+  imported by their real current live value, read from the running
+  Kubernetes secret at script run-time — never a freshly generated one.
+  **Blocked on two one-time role grants** (Claude Code's safety classifier
+  blocks IAM changes; run these once, from an account with Owner/User Access
+  Administrator on the relevant scopes):
+  ```bash
+  az role assignment create \
+    --assignee "740add8c-c763-430a-8366-e78c85f601e5" \
+    --role "Storage Blob Data Contributor" \
+    --scope "/subscriptions/87f4e6be-6585-4a1a-93f3-1a896cf644b9/resourceGroups/rg-langfuse-tfstate/providers/Microsoft.Storage/storageAccounts/stacmelftfstate"
+  az role assignment create \
+    --assignee "740add8c-c763-430a-8366-e78c85f601e5" \
+    --role "Key Vault Secrets User" \
+    --scope "/subscriptions/87f4e6be-6585-4a1a-93f3-1a896cf644b9/resourceGroups/rg-langfuse/providers/Microsoft.KeyVault/vaults/kv-langfuse-bgqj"
+  ```
+  Then, in Cloud Shell (no local Terraform on the machine this was built
+  from): `terraform init`, `bash import-state.sh` from `deploy/azure/`,
+  then `terraform plan` — must show **0 to add, 0 to change, 0 to destroy**
+  before this item is actually closed. Do not `apply` until that's true.
 - **Cloud Shell storage mount reliability.** The `$HOME` mount failed at least
   twice in one session (once losing all local files, once again on a later
   reconnect). Root cause not investigated (still worth a closer look at whether
