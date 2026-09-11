@@ -1,0 +1,117 @@
+# Presidio Analyzer + Anonymizer — backs the native LiteLLM "presidio" PII
+# guardrail (see ../config/litellm-config.yaml's `guardrails:` block).
+# Original mcr.microsoft.com/presidio-* images are legacy; pinned to the
+# maintained ghcr.io/data-privacy-stack fork's 2.2.364 release instead of
+# `latest`. Both listen on container port 3000 internally regardless of the
+# Service port each is fronted by.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: presidio-analyzer
+  namespace: rayin-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: presidio-analyzer
+  template:
+    metadata:
+      labels:
+        app: presidio-analyzer
+    spec:
+      containers:
+        - name: presidio-analyzer
+          image: ghcr.io/data-privacy-stack/presidio-analyzer:2.2.364
+          ports:
+            - containerPort: 3000
+          resources:
+            # Loads a spaCy NLP model at startup — same class of memory
+            # footprint as rayin-guardrails' own spaCy dependency. Sized
+            # with real headroom after LiteLLM's own OOM lesson earlier
+            # tonight; see integrations/litellm/README.md.
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1536Mi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: presidio-analyzer
+  namespace: rayin-platform
+spec:
+  type: ClusterIP
+  selector:
+    app: presidio-analyzer
+  ports:
+    - port: 5002
+      targetPort: 3000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: presidio-anonymizer
+  namespace: rayin-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: presidio-anonymizer
+  template:
+    metadata:
+      labels:
+        app: presidio-anonymizer
+    spec:
+      containers:
+        - name: presidio-anonymizer
+          image: ghcr.io/data-privacy-stack/presidio-anonymizer:2.2.364
+          ports:
+            - containerPort: 3000
+          resources:
+            # No ML model loaded — text transformation only, much lighter
+            # than the analyzer.
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 384Mi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: presidio-anonymizer
+  namespace: rayin-platform
+spec:
+  type: ClusterIP
+  selector:
+    app: presidio-anonymizer
+  ports:
+    - port: 5001
+      targetPort: 3000
