@@ -46,10 +46,34 @@ export const env = createEnv({
     DATABASE_URL: z.url(),
     NODE_ENV: z.enum(["development", "test", "production"]),
     BUILD_ID: z.string().optional(),
-    // ACME addition: server-only key for the in-app ACME AI chat feature
-    // (web/src/features/acme-enhancements/server/acmeChatRouter.ts). Never
-    // exposed to the client — read only inside the tRPC mutation handler.
-    ANTHROPIC_API_KEY: z.string().optional(),
+    // ACME addition: the in-app ACME AI chat feature
+    // (web/src/features/acme-enhancements/server/acmeChatRouter.ts) always
+    // calls through RAYIN's own LiteLLM gateway (integrations/litellm) --
+    // never a provider directly (superseded ANTHROPIC_API_KEY, which called
+    // Anthropic directly). Never exposed to the client — read only inside
+    // the tRPC mutation handler.
+    //
+    // RAYIN_CHAT_LLM_BASE_URL: the gateway's OpenAI-compatible base URL,
+    // e.g. http://litellm.rayin-platform:4000/v1 (no trailing path beyond
+    // /v1 -- the router appends /chat/completions itself).
+    RAYIN_CHAT_LLM_BASE_URL: z.string().optional(),
+    // RAYIN_CHAT_LLM_API_KEY: a LiteLLM virtual key dedicated to this
+    // feature (never a raw provider key -- the gateway holds those).
+    RAYIN_CHAT_LLM_API_KEY: z.string().optional(),
+    // RAYIN_CHAT_LLM_MODEL: the LiteLLM model_name alias to call (must be
+    // one of that virtual key's allowed models), e.g. "nvidia-nemotron".
+    RAYIN_CHAT_LLM_MODEL: z.string().optional(),
+    // ACME addition: in-cluster URL of the rayin-guardrails service (see
+    // https://github.com/samrayin/rayin-guardrails), read only by
+    // acmeGuardrailsRouter.ts. Left unset, the Guardrails dashboard reports
+    // itself as not configured rather than erroring — a customer who
+    // doesn't run this integration is never required to.
+    RAYIN_GUARDRAILS_URL: z.string().optional(),
+    // ACME addition: shared secret for rayin-guardrails -- required on
+    // every endpoint (guard, events, GET+PUT config), not just the write
+    // path. Never exposed to the client. Left unset, every call refuses
+    // to authenticate rather than silently failing.
+    RAYIN_GUARDRAILS_CONFIG_SECRET: z.string().optional(),
     NEXTAUTH_SECRET:
       process.env.NODE_ENV === "production"
         ? z.string().min(1)
@@ -743,7 +767,11 @@ export const env = createEnv({
    */
   runtimeEnv: {
     // ACME addition
-    ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+    RAYIN_CHAT_LLM_BASE_URL: process.env.RAYIN_CHAT_LLM_BASE_URL,
+    RAYIN_CHAT_LLM_API_KEY: process.env.RAYIN_CHAT_LLM_API_KEY,
+    RAYIN_CHAT_LLM_MODEL: process.env.RAYIN_CHAT_LLM_MODEL,
+    RAYIN_GUARDRAILS_URL: process.env.RAYIN_GUARDRAILS_URL,
+    RAYIN_GUARDRAILS_CONFIG_SECRET: process.env.RAYIN_GUARDRAILS_CONFIG_SECRET,
     SEED_SECRET_KEY: process.env.SEED_SECRET_KEY,
     NEXT_PUBLIC_DEMO_PROJECT_ID: process.env.NEXT_PUBLIC_DEMO_PROJECT_ID,
     NEXT_PUBLIC_DEMO_ORG_ID: process.env.NEXT_PUBLIC_DEMO_ORG_ID,

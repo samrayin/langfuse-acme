@@ -13,13 +13,23 @@
  *     Prisma/ClickHouse repository functions the rest of the app already
  *     uses (getTracesTable, getTraceById, etc. from @langfuse/shared/src/
  *     server), not an external HTTP round-trip through the MCP endpoint.
- *   - Only ANTHROPIC_API_KEY needs provisioning (via additional_env, same
- *     mechanism already used for the Entra SSO client secret).
+ *   - Only RAYIN_CHAT_LLM_BASE_URL/API_KEY/MODEL need provisioning (via
+ *     additional_env, same mechanism already used for the Entra SSO client
+ *     secret) — all three point at RAYIN's own LiteLLM gateway
+ *     (integrations/litellm), never a provider directly. This always goes
+ *     through the gateway now: an earlier version called Anthropic's SDK
+ *     directly with an optional gateway override; that bypassed LiteLLM's
+ *     budget/audit path by default instead of as an opt-in, so the gateway
+ *     is now the only path, not a toggle.
+ *   - Plain fetch against LiteLLM's OpenAI-compatible /chat/completions
+ *     endpoint, not a provider SDK — matches acmeGuardrailsRouter.ts's own
+ *     style for talking to another in-cluster service, and means this
+ *     feature isn't tied to whichever SDK a given provider happens to ship.
  *
  * Security posture, same principles as acme_ai.py:
  *   1. Read-only by construction — the tool set below only ever calls
  *      read repository functions. There is no write tool defined, so
- *      Claude has no way to mutate project data through this feature.
+ *      the model has no way to mutate project data through this feature.
  *   2. Every tool result is wrapped in <untrusted_data> tags before being
  *      added to the conversation, with an explicit system-prompt
  *      instruction to treat that content as data, not instructions — trace
@@ -27,10 +37,15 @@
  *      treated as potentially adversarial.
  *   3. Project-scoped by the existing tRPC session — a user can only ever
  *      query the project they're already authorized to view.
+ *   4. Gated by "projectAiAssistant:use" (MEMBER and above, not VIEWER) --
+ *      same bar as playground:execute. Viewing trace data in the console
+ *      itself isn't scope-gated, but sending it to an LLM is a distinct,
+ *      higher-stakes action and gets its own check rather than inheriting
+ *      "can view traces" implicitly.
  */
 import { z } from "zod";
-import Anthropic from "@anthropic-ai/sdk";
 import { createTRPCRouter, protectedProjectProcedure } from "@/src/server/api/trpc";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   getTracesTable,
   getTraceById,
@@ -41,41 +56,47 @@ import {
 import { env } from "@/src/env.mjs";
 import { ACME_KNOWLEDGE_BASE } from "@/src/features/acme-enhancements/server/acmeKnowledgeBase";
 
-const MODEL = "claude-opus-5";
-
 function wrapUntrusted(text: string, toolName: string): string {
   return `<untrusted_data source="langfuse_project_data:${toolName}">\n${text}\n</untrusted_data>`;
 }
 
-const TOOLS: Anthropic.Tool[] = [
+// OpenAI-compatible function-calling shape (what LiteLLM's /chat/completions
+// expects), not Anthropic's tools/input_schema shape.
+const TOOLS = [
   {
-    name: "list_recent_traces",
-    description:
-      "List the most recent traces in this project, newest first. Use this to answer " +
-      "questions about recent activity, volume, or to find a trace to inspect further.",
-    input_schema: {
-      type: "object",
-      properties: {
-        limit: {
-          type: "number",
-          description: "How many traces to return, max 20.",
+    type: "function" as const,
+    function: {
+      name: "list_recent_traces",
+      description:
+        "List the most recent traces in this project, newest first. Use this to answer " +
+        "questions about recent activity, volume, or to find a trace to inspect further.",
+      parameters: {
+        type: "object",
+        properties: {
+          limit: {
+            type: "number",
+            description: "How many traces to return, max 20.",
+          },
         },
+        required: [],
       },
-      required: [],
     },
   },
   {
-    name: "get_trace_detail",
-    description:
-      "Get full detail for one trace by ID — its observations (model calls, tool calls) " +
-      "and any scores attached to it. Use this after list_recent_traces to inspect a " +
-      "specific trace, or when the user gives you a trace ID directly.",
-    input_schema: {
-      type: "object",
-      properties: {
-        traceId: { type: "string", description: "The trace ID to inspect." },
+    type: "function" as const,
+    function: {
+      name: "get_trace_detail",
+      description:
+        "Get full detail for one trace by ID — its observations (model calls, tool calls) " +
+        "and any scores attached to it. Use this after list_recent_traces to inspect a " +
+        "specific trace, or when the user gives you a trace ID directly.",
+      parameters: {
+        type: "object",
+        properties: {
+          traceId: { type: "string", description: "The trace ID to inspect." },
+        },
+        required: ["traceId"],
       },
-      required: ["traceId"],
     },
   },
 ];
@@ -172,6 +193,53 @@ ACME AI is read-only by design.
 ${ACME_KNOWLEDGE_BASE}
 --- END KNOWLEDGE BASE ---`;
 
+type ChatCompletionMessage =
+  | { role: "system" | "user"; content: string }
+  | {
+      role: "assistant";
+      content: string | null;
+      tool_calls?: Array<{
+        id: string;
+        type: "function";
+        function: { name: string; arguments: string };
+      }>;
+    }
+  | { role: "tool"; tool_call_id: string; content: string };
+
+async function callGateway(messages: ChatCompletionMessage[]) {
+  const res = await fetch(`${env.RAYIN_CHAT_LLM_BASE_URL}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${env.RAYIN_CHAT_LLM_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: env.RAYIN_CHAT_LLM_MODEL,
+      max_tokens: 2048,
+      messages,
+      tools: TOOLS,
+    }),
+    signal: AbortSignal.timeout(60_000),
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`LiteLLM chat completion failed (${res.status}): ${detail}`);
+  }
+  return res.json() as Promise<{
+    choices: Array<{
+      message: {
+        content: string | null;
+        tool_calls?: Array<{
+          id: string;
+          type: "function";
+          function: { name: string; arguments: string };
+        }>;
+      };
+      finish_reason: string;
+    }>;
+  }>;
+}
+
 export const acmeChatRouter = createTRPCRouter({
   sendMessage: protectedProjectProcedure
     .input(
@@ -187,55 +255,55 @@ export const acmeChatRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      if (!env.ANTHROPIC_API_KEY) {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "projectAiAssistant:use",
+      });
+
+      if (!env.RAYIN_CHAT_LLM_BASE_URL || !env.RAYIN_CHAT_LLM_API_KEY || !env.RAYIN_CHAT_LLM_MODEL) {
         return {
           reply:
-            "ACME AI is not configured on this deployment — ANTHROPIC_API_KEY is not set.",
+            "ACME AI is not configured on this deployment — RAYIN_CHAT_LLM_BASE_URL, " +
+            "RAYIN_CHAT_LLM_API_KEY and RAYIN_CHAT_LLM_MODEL must all be set (see " +
+            "integrations/litellm).",
         };
       }
 
-      const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
-
-      const messages: Anthropic.MessageParam[] = [
-        ...input.history.map((m) => ({ role: m.role, content: m.content })),
+      const messages: ChatCompletionMessage[] = [
+        { role: "system", content: SYSTEM_PROMPT },
+        ...input.history.map((m) => ({ role: m.role, content: m.content }) as ChatCompletionMessage),
         { role: "user" as const, content: input.message },
       ];
 
       // Bounded tool loop — never let a misbehaving tool cycle spin forever.
       for (let iteration = 0; iteration < 5; iteration++) {
-        const response = await client.messages.create({
-          model: MODEL,
-          max_tokens: 2048,
-          system: SYSTEM_PROMPT,
-          tools: TOOLS,
-          messages,
-        });
+        const response = await callGateway(messages);
+        const choice = response.choices[0];
+        const message = choice?.message;
 
-        if (response.stop_reason !== "tool_use") {
-          const text = response.content
-            .filter((b): b is Anthropic.TextBlock => b.type === "text")
-            .map((b) => b.text)
-            .join("\n");
-          return { reply: text || "(no response)" };
+        if (!message?.tool_calls?.length) {
+          return { reply: message?.content || "(no response)" };
         }
 
-        messages.push({ role: "assistant", content: response.content });
+        messages.push({
+          role: "assistant",
+          content: message.content,
+          tool_calls: message.tool_calls,
+        });
 
-        const toolUseBlocks = response.content.filter(
-          (b): b is Anthropic.ToolUseBlock => b.type === "tool_use",
-        );
         const toolResults = await Promise.all(
-          toolUseBlocks.map(async (block) => ({
-            type: "tool_result" as const,
-            tool_use_id: block.id,
+          message.tool_calls.map(async (call) => ({
+            role: "tool" as const,
+            tool_call_id: call.id,
             content: await runTool(
-              block.name,
-              block.input as Record<string, unknown>,
+              call.function.name,
+              JSON.parse(call.function.arguments || "{}") as Record<string, unknown>,
               input.projectId,
             ),
           })),
         );
-        messages.push({ role: "user", content: toolResults });
+        messages.push(...toolResults);
       }
 
       return {

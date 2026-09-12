@@ -1,0 +1,80 @@
+# Deploys into the same AKS node Langfuse already runs on — no new node
+# pool. Sizing follows the same "explicit requests/limits, don't leave it
+# unbounded" reasoning applied to rayin-guardrails; see README.md
+# "Architecture" for the headroom numbers this was sized against.
+#
+# Memory limit was originally 1Gi, sized off rayin-guardrails' spaCy
+# footprint by mistake, not LiteLLM's own (Prisma client + FastAPI + bundled
+# admin UI). First live deploy (2026-09-11) OOMKilled repeatedly at 1Gi —
+# raised to 2Gi, still comfortably inside the node's headroom.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: litellm
+  namespace: rayin-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: litellm
+  template:
+    metadata:
+      labels:
+        app: litellm
+    spec:
+      containers:
+        - name: litellm
+          image: ghcr.io/berriai/litellm:main-stable
+          args: ["--config", "/app/config/litellm-config.yaml"]
+          # Image's own default user is root (confirmed via `kubectl exec ... id`
+          # against the live pod, 2026-09-12) -- runAsUser is required alongside
+          # runAsNonRoot or the pod fails at startup. Verified safe first in an
+          # ephemeral test pod (same image/args/config mount, uid 1000) before
+          # applying here: app started cleanly, bound port 4000, no permission
+          # errors. Flagged by the repo's Semgrep security-scan CI.
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+          ports:
+            - containerPort: 4000
+          envFrom:
+            - secretRef:
+                name: litellm-provider-keys
+          resources:
+            requests:
+              cpu: 250m
+              memory: 768Mi
+            limits:
+              cpu: 1000m
+              memory: 2Gi
+          readinessProbe:
+            httpGet:
+              path: /health/readiness
+              port: 4000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health/liveliness
+              port: 4000
+            initialDelaySeconds: 15
+            periodSeconds: 15
+          volumeMounts:
+            - name: config
+              mountPath: /app/config
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            # Managed separately, not inline here — an earlier version of
+            # this file defined a placeholder ConfigMap in the same apply,
+            # which silently overwrote the real one (created via the
+            # --from-file command below) on every `kubectl apply -f
+            # deployment.yaml`. Real source of truth stays
+            # ../config/litellm-config.yaml, applied with:
+            #   kubectl create configmap litellm-config \
+            #     --namespace rayin-platform \
+            #     --from-file=litellm-config.yaml=../config/litellm-config.yaml \
+            #     --dry-run=client -o yaml | kubectl apply -f -
+            name: litellm-config

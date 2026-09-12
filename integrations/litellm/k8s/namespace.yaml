@@ -1,0 +1,6 @@
+# Shared with rayin-guardrails — see README.md "Open decisions" #1 for why
+# this is a separate namespace from `langfuse` rather than reusing it.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: rayin-platform

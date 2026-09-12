@@ -1,0 +1,86 @@
+# LiteLLM native config — template.
+#
+# Fill in the real model list for whichever providers are going live (see
+# README.md "Open decisions" #2), then apply as a ConfigMap or mount directly
+# — this file has no secrets in it, provider keys are referenced by env var
+# name only and come from the litellm-provider-keys Secret (see
+# ../k8s/secret.example.yaml).
+
+model_list:
+  # Anthropic — originally "live day one" per "Open decisions" #2
+  # (2026-09-11), but the underlying account has no billing credit
+  # (discovered 2026-09-12 when promptfoo's gateway eval surfaced a raw
+  # "credit balance is too low" error -- every call through this model
+  # 400s). Left in the model list (harmless, LiteLLM just reports it
+  # unhealthy) since fixing the account's billing is the real long-term
+  # answer, but nothing in this deployment should target it right now --
+  # see nvidia-nemotron below, the actual live default for dev.
+  - model_name: claude-sonnet
+    litellm_params:
+      model: anthropic/claude-sonnet-5
+      api_key: os.environ/ANTHROPIC_API_KEY
+
+  # OpenRouter (NVIDIA Nemotron 3 Ultra, free tier) — added 2026-09-12 to
+  # unblock promptfoo eval/red-team testing while the Anthropic account has
+  # no credit (see note above). This is the model every dev-environment
+  # consumer (chat, promptfoo, rayin-guardrails' own rail engine) should
+  # actually target for now -- not a permanent provider decision, just what
+  # works today without a billing fix. (A Groq entry was tried and removed
+  # 2026-09-12: the model slug this account had access to no longer exists
+  # on Groq's current lineup, and nvidia-nemotron alone was sufficient to
+  # unblock testing, so it wasn't worth chasing a second working provider.)
+  - model_name: nvidia-nemotron
+    litellm_params:
+      model: openrouter/nvidia/nemotron-3-ultra-550b-a55b:free
+      api_key: os.environ/OPENROUTER_API_KEY
+
+  # OpenAI — configured-but-dormant. Uncomment once this provider is confirmed live.
+  # - model_name: gpt-4o
+  #   litellm_params:
+  #     model: openai/gpt-4o
+  #     api_key: os.environ/OPENAI_API_KEY
+
+  # Azure OpenAI — configured-but-dormant. Uncomment once this provider is confirmed live.
+  # - model_name: azure-gpt-4o
+  #   litellm_params:
+  #     model: azure/<deployment-name>
+  #     api_key: os.environ/AZURE_OPENAI_API_KEY
+  #     api_base: os.environ/AZURE_OPENAI_ENDPOINT
+  #     api_version: "2026-01-01-preview"
+
+general_settings:
+  # LiteLLM's own state (spend tracking, virtual keys) — points at a new
+  # schema/database on the existing psql-langfuse-bgqj server, not a new
+  # Postgres instance. Real value comes from the DATABASE_URL key in the
+  # litellm-provider-keys Secret.
+  database_url: os.environ/DATABASE_URL
+  master_key: os.environ/LITELLM_MASTER_KEY
+
+# Native Langfuse logging integration — routes LiteLLM's own usage data into
+# RAYIN's existing Observability section instead of a second dashboard.
+litellm_settings:
+  success_callback: ["langfuse"]
+  failure_callback: ["langfuse"]
+
+# Starter virtual keys — one per team/use case, per README.md "Open
+# decisions" #3 (2026-09-12: $50/key, confirmed -- per-key, not a shared
+# total; live-updated via /key/update from an earlier, undocumented $25/key
+# drift). Created via the LiteLLM Admin UI or API after the proxy is up,
+# e.g.:
+#
+# NOTE (2026-09-12): both starter keys are scoped to nvidia-nemotron, not
+# claude-sonnet -- this dev environment's Anthropic account has no billing
+# credit, so RAYIN_CHAT_LLM_MODEL and rayin-guardrails' GUARDRAILS_LLM_MODEL
+# should both target nvidia-nemotron for now. Revisit once Anthropic
+# billing is sorted or a real production provider decision is made --
+# this is a dev-environment workaround, not the intended long-term model.
+#
+#   curl -X POST http://litellm.rayin-platform:4000/key/generate \
+#     -H "Authorization: Bearer $LITELLM_MASTER_KEY" \
+#     -H "Content-Type: application/json" \
+#     -d '{"key_alias": "chat-widget", "max_budget": 50, "models": ["nvidia-nemotron"]}'
+#
+#   curl -X POST http://litellm.rayin-platform:4000/key/generate \
+#     -H "Authorization: Bearer $LITELLM_MASTER_KEY" \
+#     -H "Content-Type: application/json" \
+#     -d '{"key_alias": "rayin-guardrails", "max_budget": 50, "models": ["nvidia-nemotron"]}'
