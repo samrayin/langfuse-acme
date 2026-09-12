@@ -27,10 +27,16 @@
  *      treated as potentially adversarial.
  *   3. Project-scoped by the existing tRPC session — a user can only ever
  *      query the project they're already authorized to view.
+ *   4. Gated by "projectAiAssistant:use" (MEMBER and above, not VIEWER) --
+ *      same bar as playground:execute. Viewing trace data in the console
+ *      itself isn't scope-gated, but sending it to an external LLM is a
+ *      distinct, higher-stakes action and gets its own check rather than
+ *      inheriting "can view traces" implicitly.
  */
 import { z } from "zod";
 import Anthropic from "@anthropic-ai/sdk";
 import { createTRPCRouter, protectedProjectProcedure } from "@/src/server/api/trpc";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   getTracesTable,
   getTraceById,
@@ -187,6 +193,12 @@ export const acmeChatRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "projectAiAssistant:use",
+      });
+
       if (!env.ANTHROPIC_API_KEY) {
         return {
           reply:

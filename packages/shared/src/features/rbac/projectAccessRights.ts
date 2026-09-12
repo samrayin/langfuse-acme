@@ -73,6 +73,22 @@ export const projectScopes = [
 
   "projectAuditLogs:read",
 
+  // ACME addition: read access to the Guardrails dashboard (recent
+  // block/redact/allow decisions from rayin-guardrails). Owner/admin only,
+  // same sensitivity level as audit logs -- these events reveal what
+  // content was flagged or blocked, not just that something happened.
+  "projectGuardrails:read",
+
+  // ACME addition: use the in-app ACME AI chat widget, which reads this
+  // project's own trace data and sends it to an external LLM API. Same
+  // bar as playground:execute (an action that also invokes an LLM) --
+  // granted to MEMBER and above, not VIEWER. Viewing the same trace data
+  // in the console itself isn't scope-gated at all (any member can), but
+  // this is a distinct action -- it causes project data to leave the
+  // tenant boundary -- and deserves its own gate rather than inheriting
+  // "can view traces" implicitly.
+  "projectAiAssistant:use",
+
   "TableViewPresets:CUD",
   "TableViewPresets:read",
 
@@ -149,6 +165,8 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "promptExperiments:CUD",
     "promptExperiments:read",
     "projectAuditLogs:read",
+    "projectGuardrails:read",
+    "projectAiAssistant:use",
     "dashboards:read",
     "dashboards:CUD",
     "TableViewPresets:CUD",
@@ -206,6 +224,8 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "promptExperiments:CUD",
     "promptExperiments:read",
     "projectAuditLogs:read",
+    "projectGuardrails:read",
+    "projectAiAssistant:use",
     "dashboards:read",
     "dashboards:CUD",
     "TableViewPresets:CUD",
@@ -258,6 +278,7 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "automations:read",
     "alerts:read",
     "alerts:CUD",
+    "projectAiAssistant:use",
   ],
   VIEWER: [
     "project:read",

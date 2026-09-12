@@ -21,6 +21,7 @@ import {
   Clock,
   Beaker,
   ShieldCheck,
+  ShieldAlert,
   Palette,
 } from "lucide-react";
 import { type ReactNode } from "react";
@@ -113,6 +114,20 @@ export const ROUTES: Route[] = [
     pathname: `/project/[projectId]/dashboards`,
     icon: LayoutDashboard,
     productModule: "dashboards",
+    section: RouteSection.Main,
+  },
+  {
+    // ACME addition: policy enforcement (PII redaction, jailbreak/topical
+    // rails) via rayin-guardrails (github.com/samrayin/rayin-guardrails) —
+    // a separate service, not code in this repo. Standalone top-level
+    // feature, not nested under ACME Enhancements, since it's a runtime
+    // security control rather than a console customization. See
+    // acmeGuardrailsRouter.ts for why this dashboard is only ever as
+    // durable as that service's own in-memory buffer.
+    title: "Guardrails",
+    pathname: `/project/[projectId]/acme-enhancements/guardrails`,
+    icon: ShieldAlert,
+    projectRbacScopes: ["projectGuardrails:read"],
     section: RouteSection.Main,
   },
   {
