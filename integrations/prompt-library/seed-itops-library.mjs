@@ -47,6 +47,7 @@ async function createPrompt(entry) {
       name: entry.name,
       prompt: entry.prompt,
       type: "chat",
+      isActive: true,
       labels: [entry.label],
       tags: ["itops-library"],
       commitMessage: entry.description,
