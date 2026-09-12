@@ -4,17 +4,18 @@ extensions:
   - file://hooks/langfuse-scores.js:langfuseScores
 
 providers:
-  - id: openai:chat:groq-llama # LiteLLM model_name alias, not the upstream id
+  - id: openai:chat:nvidia-nemotron # LiteLLM model_name alias, not the upstream id
     config:
       apiBaseUrl: http://localhost:4000/v1 # in-cluster: http://litellm.rayin-platform:4000/v1
       apiKeyEnvar: LITELLM_PROMPTFOO_KEY
-      # No temperature override needed -- unlike claude-sonnet (Claude Sonnet
-      # 5 only supports temperature=1), Groq's Llama models accept promptfoo's
-      # default temperature=0, which is better for eval reproducibility anyway.
+      # No temperature override needed here (unlike claude-sonnet, which only
+      # supports temperature=1) -- confirmed working via OpenRouter's free
+      # tier while both claude-sonnet (no credit) and groq-llama (model slug
+      # no longer valid on this account) are unhealthy.
 
 defaultTest:
   options:
-    provider: openai:chat:groq-llama # grade with a model actually reachable today (Anthropic account has no credit)
+    provider: openai:chat:nvidia-nemotron # grade with a model actually reachable today
 
 prompts:
   - |

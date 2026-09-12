@@ -21,9 +21,13 @@ model_list:
       api_key: os.environ/ANTHROPIC_API_KEY
 
   # Groq — added 2026-09-12 to unblock promptfoo eval/red-team testing while
-  # the Anthropic account has no credit (see note above). Free-tier API,
-  # OpenAI-compatible via LiteLLM's groq/ prefix. Not a production provider
-  # decision -- this exists for eval traffic, not customer-facing traffic.
+  # the Anthropic account has no credit (see note above). NOT currently
+  # working: /health reports "model llama-3.3-70b-versatile does not exist
+  # or you do not have access to it" -- Groq's available model list has
+  # apparently moved on from this slug. Left in place (harmless -- LiteLLM
+  # just reports it unhealthy) rather than removed, since fixing the model
+  # name is a quick follow-up, not a blocker; nvidia-nemotron below is the
+  # actual working second provider for now.
   - model_name: groq-llama
     litellm_params:
       model: groq/llama-3.3-70b-versatile
