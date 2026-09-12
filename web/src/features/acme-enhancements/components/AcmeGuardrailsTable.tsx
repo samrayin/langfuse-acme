@@ -152,7 +152,6 @@ function AcmeGuardrailsPolicies({ projectId }: { projectId: string }) {
         <div className="flex items-start justify-between gap-3 border-b py-3">
           <div>
             <div className="text-sm font-medium">Jailbreak Detection</div>
-            <div className="text-muted-foreground text-xs">NeMo Guardrails · rail flow</div>
           </div>
           <Switch
             checked={draft.jailbreakEnabled}
@@ -164,7 +163,6 @@ function AcmeGuardrailsPolicies({ projectId }: { projectId: string }) {
         <div className="flex items-start justify-between gap-3 border-b py-3">
           <div>
             <div className="text-sm font-medium">Topical Rail</div>
-            <div className="text-muted-foreground text-xs">NeMo Guardrails · rail flow</div>
           </div>
           <Switch
             checked={draft.topicalEnabled}
@@ -176,7 +174,6 @@ function AcmeGuardrailsPolicies({ projectId }: { projectId: string }) {
         <div className="flex items-start justify-between gap-3 py-3">
           <div className="min-w-0 flex-1">
             <div className="text-sm font-medium">PII Redaction</div>
-            <div className="text-muted-foreground text-xs">Microsoft Presidio</div>
             <div
               className={cn(
                 "mt-2 flex flex-wrap gap-1.5 transition-opacity",

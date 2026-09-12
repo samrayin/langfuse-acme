@@ -117,6 +117,20 @@ export const ROUTES: Route[] = [
     section: RouteSection.Main,
   },
   {
+    // ACME addition: policy enforcement (PII redaction, jailbreak/topical
+    // rails) via rayin-guardrails (github.com/samrayin/rayin-guardrails) —
+    // a separate service, not code in this repo. Standalone top-level
+    // feature, not nested under ACME Enhancements, since it's a runtime
+    // security control rather than a console customization. See
+    // acmeGuardrailsRouter.ts for why this dashboard is only ever as
+    // durable as that service's own in-memory buffer.
+    title: "Guardrails",
+    pathname: `/project/[projectId]/acme-enhancements/guardrails`,
+    icon: ShieldAlert,
+    projectRbacScopes: ["projectGuardrails:read"],
+    section: RouteSection.Main,
+  },
+  {
     title: "Tracing",
     icon: ListTree,
     productModule: "tracing",
@@ -239,19 +253,6 @@ export const ROUTES: Route[] = [
     pathname: `/project/[projectId]/acme-enhancements/ui-customization`,
     icon: Palette,
     projectRbacScopes: ["project:update"],
-    group: RouteGroup.AcmeEnhancements,
-    section: RouteSection.Main,
-  },
-  {
-    // ACME addition: reads recent block/redact/allow decisions from
-    // rayin-guardrails (github.com/samrayin/rayin-guardrails) — a separate
-    // service, not code in this repo. See acmeGuardrailsRouter.ts for why
-    // this dashboard is only ever as durable as that service's own
-    // in-memory buffer.
-    title: "Guardrails",
-    pathname: `/project/[projectId]/acme-enhancements/guardrails`,
-    icon: ShieldAlert,
-    projectRbacScopes: ["projectGuardrails:read"],
     group: RouteGroup.AcmeEnhancements,
     section: RouteSection.Main,
   },

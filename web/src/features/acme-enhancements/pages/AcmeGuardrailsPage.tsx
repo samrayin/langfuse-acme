@@ -16,7 +16,7 @@ export default function AcmeGuardrailsPage() {
   const projectId = useProjectIdFromURL();
 
   return (
-    <Page headerProps={headerProps}>
+    <Page headerProps={headerProps} scrollable withPadding>
       {projectId ? <AcmeGuardrailsTable projectId={projectId} /> : null}
     </Page>
   );
