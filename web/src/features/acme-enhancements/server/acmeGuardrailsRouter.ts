@@ -12,11 +12,13 @@
  *
  * updateConfig: "project:update" — owner/admin only, same gate as UI
  * Customization, since this changes what gets enforced for every user in
- * the project, not just how the dashboard looks. Writes are pushed live to
- * rayin-guardrails via its PUT /v1/config, authenticated with a shared
- * secret (RAYIN_GUARDRAILS_CONFIG_SECRET) — that endpoint is the one thing
- * on that service actually worth gating, since every other endpoint there
- * is read-only or self-contained.
+ * the project, not just how the dashboard looks.
+ *
+ * Every call to rayin-guardrails from here — reads and the write — carries
+ * the shared secret (RAYIN_GUARDRAILS_CONFIG_SECRET) as X-Config-Secret.
+ * That service used to treat /v1/events and GET /v1/config as
+ * same-network-trust, no auth needed; it now requires the secret on every
+ * endpoint it exposes, so every fetch below needs the header too.
  */
 import { z } from "zod";
 import { createTRPCRouter, protectedProjectProcedure } from "@/src/server/api/trpc";
@@ -71,12 +73,18 @@ export const acmeGuardrailsRouter = createTRPCRouter({
       if (!env.RAYIN_GUARDRAILS_URL) {
         return { configured: false as const };
       }
+      if (!env.RAYIN_GUARDRAILS_CONFIG_SECRET) {
+        throw new Error(
+          "RAYIN_GUARDRAILS_CONFIG_SECRET is not configured — refusing to call an endpoint we can't authenticate to.",
+        );
+      }
 
       const res = await fetch(
         `${env.RAYIN_GUARDRAILS_URL}/v1/events?limit=${input.limit}`,
-        // Same network boundary as litellm — in-cluster only, no auth on
-        // this endpoint yet (see rayin-guardrails README "Known gaps").
-        { signal: AbortSignal.timeout(5_000) },
+        {
+          headers: { "X-Config-Secret": env.RAYIN_GUARDRAILS_CONFIG_SECRET },
+          signal: AbortSignal.timeout(5_000),
+        },
       );
       if (!res.ok) {
         throw new Error(
@@ -100,8 +108,14 @@ export const acmeGuardrailsRouter = createTRPCRouter({
       if (!env.RAYIN_GUARDRAILS_URL) {
         return { configured: false as const };
       }
+      if (!env.RAYIN_GUARDRAILS_CONFIG_SECRET) {
+        throw new Error(
+          "RAYIN_GUARDRAILS_CONFIG_SECRET is not configured — refusing to call an endpoint we can't authenticate to.",
+        );
+      }
 
       const res = await fetch(`${env.RAYIN_GUARDRAILS_URL}/v1/config`, {
+        headers: { "X-Config-Secret": env.RAYIN_GUARDRAILS_CONFIG_SECRET },
         signal: AbortSignal.timeout(5_000),
       });
       if (!res.ok) {

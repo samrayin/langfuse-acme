@@ -7,6 +7,7 @@ import { Textarea } from "@/src/components/ui/textarea";
 import { Layer } from "@/src/components/ui/layer";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
+import { useHasProjectAccess } from "@/src/features/rbac";
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
 
@@ -22,6 +23,15 @@ export function AcmeChatWidget({ projectId }: { projectId: string }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // UX-only: hides the launcher for roles that lack "projectAiAssistant:use"
+  // (VIEWER) so it doesn't sit there as a button that always errors. The
+  // real boundary is the server-side throwIfNoProjectAccess check in
+  // acmeChatRouter.ts -- this check is not what makes the feature safe.
+  const canUse = useHasProjectAccess({
+    projectId,
+    scope: "projectAiAssistant:use",
+  });
 
   const sendMessage = api.acmeChat.sendMessage.useMutation();
 
@@ -55,6 +65,8 @@ export function AcmeChatWidget({ projectId }: { projectId: string }) {
       },
     );
   };
+
+  if (!canUse) return null;
 
   return (
     <Layer name="panel">
