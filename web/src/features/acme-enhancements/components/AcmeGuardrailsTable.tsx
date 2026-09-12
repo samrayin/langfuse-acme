@@ -15,6 +15,8 @@ import { api } from "@/src/utils/api";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { cn } from "@/src/utils/tailwind";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
 
 const ALL_PII_ENTITIES = [
   "EMAIL_ADDRESS",
@@ -39,6 +41,131 @@ function ActionBadge({ action }: { action: "allow" | "redact" | "block" }) {
   if (action === "block") return <Badge variant="error">Blocked</Badge>;
   if (action === "redact") return <Badge variant="warning">Redacted</Badge>;
   return <Badge variant="success">Allowed</Badge>;
+}
+
+const ASSURANCE_SCORE_NAME = "promptfoo-pass";
+const ASSURANCE_LOOKBACK_DAYS = 90;
+
+type AssuranceRow = { time_dimension?: string; avg_value?: number };
+
+// Continuous Assurance: the guardrails dashboard so far only shows what
+// rayin-guardrails decided about traffic it actually saw -- it says nothing
+// about whether the rail itself still catches what it's supposed to. This
+// reads the promptfoo red-team suite's own verdicts (pushed here as Scores
+// by integrations/promptfoo/config/hooks/langfuse-scores.js) and trends the
+// block rate over time, rather than asserting the rail works and leaving it
+// unverified between manual spot-checks.
+//
+// Reuses the existing generic dashboard query engine (api.dashboard.
+// executeQuery) instead of a bespoke ACME endpoint -- this is the same
+// mechanism ScoresChartView already uses, just a fixed query instead of a
+// user-configurable one.
+function AcmeGuardrailsAssurance({ projectId }: { projectId: string }) {
+  const { isV4 } = useReadPath();
+  const viewVersion: ViewVersion = isV4 ? "v2" : "v1";
+
+  const toTimestamp = new Date();
+  const fromTimestamp = new Date(
+    toTimestamp.getTime() - ASSURANCE_LOOKBACK_DAYS * 24 * 60 * 60 * 1000,
+  );
+
+  const query: QueryType = {
+    view: "scores-numeric",
+    dimensions: [],
+    metrics: [{ measure: "value", aggregation: "avg" }],
+    filters: [
+      {
+        column: "name",
+        operator: "any of",
+        value: [ASSURANCE_SCORE_NAME],
+        type: "stringOptions",
+      },
+    ],
+    timeDimension: { granularity: "day" },
+    fromTimestamp: fromTimestamp.toISOString(),
+    toTimestamp: toTimestamp.toISOString(),
+    orderBy: null,
+  };
+
+  const trend = api.dashboard.executeQuery.useQuery({
+    projectId,
+    query,
+    version: viewVersion,
+  });
+
+  const rows = ((trend.data as AssuranceRow[] | undefined) ?? [])
+    .filter((r) => typeof r.avg_value === "number" && r.time_dimension)
+    .sort(
+      (a, b) =>
+        new Date(a.time_dimension!).getTime() -
+        new Date(b.time_dimension!).getTime(),
+    );
+
+  const latest = rows.at(-1);
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0">
+        <div>
+          <CardTitle className="text-sm">Continuous Assurance</CardTitle>
+          <p className="text-muted-foreground mt-1 text-xs">
+            The jailbreak rail&apos;s own red-team suite (promptfoo), trended
+            over time — not a claim, a measurement, checked on a schedule.
+          </p>
+        </div>
+        <Badge variant="secondary">beta · promptfoo</Badge>
+      </CardHeader>
+      <CardContent className="pt-0">
+        {trend.isPending ? (
+          <p className="text-muted-foreground text-sm">Loading…</p>
+        ) : trend.isError ? (
+          <p className="text-muted-foreground text-sm">
+            Could not load assurance data: {trend.error.message}
+          </p>
+        ) : rows.length === 0 ? (
+          <p className="text-muted-foreground text-sm">
+            No red-team runs recorded yet for this project. Once the
+            promptfoo suite (see <code>integrations/promptfoo</code>) runs
+            against rayin-guardrails and pushes its verdicts here as Scores,
+            the block-rate trend appears automatically — nothing to
+            configure on this page.
+          </p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl font-semibold">
+                {Math.round((latest?.avg_value ?? 0) * 100)}%
+              </span>
+              <span className="text-muted-foreground text-xs">
+                jailbreak block rate, most recent run (
+                {latest?.time_dimension
+                  ? new Date(latest.time_dimension).toLocaleDateString()
+                  : "—"}
+                )
+              </span>
+            </div>
+            <div className="flex h-16 items-end gap-1">
+              {rows.map((r, i) => (
+                <div
+                  key={i}
+                  className="bg-primary/70 min-w-[3px] flex-1 rounded-t-sm"
+                  style={{
+                    height: `${Math.max(4, (r.avg_value ?? 0) * 100)}%`,
+                  }}
+                  title={`${r.time_dimension ? new Date(r.time_dimension).toLocaleDateString() : ""}: ${Math.round((r.avg_value ?? 0) * 100)}%`}
+                />
+              ))}
+            </div>
+            <p className="text-muted-foreground text-xs">
+              Each bar is one day&apos;s red-team run over the last{" "}
+              {ASSURANCE_LOOKBACK_DAYS} days. A low or dropping bar is the
+              real finding, not a bug in this chart.
+            </p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 
 function AcmeGuardrailsPolicies({ projectId }: { projectId: string }) {
@@ -336,6 +463,8 @@ export function AcmeGuardrailsTable({ projectId }: { projectId: string }) {
       </div>
 
       <AcmeGuardrailsPolicies projectId={projectId} />
+
+      <AcmeGuardrailsAssurance projectId={projectId} />
 
       <Card>
         <CardHeader>
