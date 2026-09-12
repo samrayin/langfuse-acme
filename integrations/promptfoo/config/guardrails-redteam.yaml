@@ -52,7 +52,7 @@ redteam:
   # attacking a different model is a more realistic adversarial setup than
   # a model attacking a copy of itself.
   provider:
-    id: openai:chat:gemini-flash
+    id: openai:chat:nvidia-nemotron
     config:
       apiBaseUrl: http://localhost:4000/v1
       apiKeyEnvar: LITELLM_PROMPTFOO_KEY

@@ -29,14 +29,16 @@ model_list:
       model: groq/llama-3.3-70b-versatile
       api_key: os.environ/GROQ_API_KEY
 
-  # Google Gemini — added 2026-09-12, same reason as groq-llama above. Having
-  # two working eval providers lets promptfoo's red-team use a different
-  # model as the attacker than the one being tested as the target, which is
-  # a more realistic adversarial setup than a model attacking itself.
-  - model_name: gemini-flash
+  # OpenRouter (NVIDIA Nemotron 3 Ultra, free tier) — added 2026-09-12,
+  # replaces an originally-planned direct Gemini entry (key was never
+  # actually generated). Same reason as groq-llama above: having two
+  # working eval providers lets promptfoo's red-team use a different model
+  # as the attacker than the one being tested as the target, which is a
+  # more realistic adversarial setup than a model attacking itself.
+  - model_name: nvidia-nemotron
     litellm_params:
-      model: gemini/gemini-2.0-flash
-      api_key: os.environ/GEMINI_API_KEY
+      model: openrouter/nvidia/nemotron-3-ultra-550b-a55b:free
+      api_key: os.environ/OPENROUTER_API_KEY
 
   # OpenAI — configured-but-dormant. Uncomment once this provider is confirmed live.
   # - model_name: gpt-4o
