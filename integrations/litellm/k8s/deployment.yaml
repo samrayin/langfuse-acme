@@ -26,6 +26,16 @@ spec:
         - name: litellm
           image: ghcr.io/berriai/litellm:main-stable
           args: ["--config", "/app/config/litellm-config.yaml"]
+          # Image's own default user is root (confirmed via `kubectl exec ... id`
+          # against the live pod, 2026-09-12) -- runAsUser is required alongside
+          # runAsNonRoot or the pod fails at startup. Verified safe first in an
+          # ephemeral test pod (same image/args/config mount, uid 1000) before
+          # applying here: app started cleanly, bound port 4000, no permission
+          # errors. Flagged by the repo's Semgrep security-scan CI.
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
           ports:
             - containerPort: 4000
           envFrom:
