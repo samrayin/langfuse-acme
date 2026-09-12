@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/src/components/ui/card";
 import { Badge } from "@/src/components/ui/badge";
 import { Switch } from "@/src/components/ui/switch";
@@ -60,9 +61,38 @@ type AssuranceRow = { time_dimension?: string; avg_value?: number };
 // executeQuery) instead of a bespoke ACME endpoint -- this is the same
 // mechanism ScoresChartView already uses, just a fixed query instead of a
 // user-configurable one.
+const RECENT_RESULTS_LIMIT = 20;
+
 function AcmeGuardrailsAssurance({ projectId }: { projectId: string }) {
   const { isV4 } = useReadPath();
   const viewVersion: ViewVersion = isV4 ? "v2" : "v1";
+
+  // Individual, unaggregated score rows for the latest run -- the trend
+  // chart above answers "is it working," this answers "show me the actual
+  // test cases." Same v3/v4 split scores.tsx uses (events-backed reads
+  // only exist on v4), same reason: allFromEvents has no traces JOIN.
+  const recentResultsInput = {
+    projectId,
+    filter: [
+      {
+        column: "name",
+        operator: "any of" as const,
+        value: [ASSURANCE_SCORE_NAME],
+        type: "stringOptions" as const,
+      },
+    ],
+    orderBy: { column: "timestamp", order: "DESC" as const },
+    page: 0,
+    limit: RECENT_RESULTS_LIMIT,
+  };
+  const recentResultsV3 = api.scores.all.useQuery(recentResultsInput, {
+    enabled: !isV4,
+  });
+  const recentResultsV4 = api.scores.allFromEvents.useQuery(recentResultsInput, {
+    enabled: isV4,
+  });
+  const recentResults = isV4 ? recentResultsV4 : recentResultsV3;
+  const recentRows = recentResults.data?.scores ?? [];
 
   const toTimestamp = new Date();
   const fromTimestamp = new Date(
@@ -161,6 +191,51 @@ function AcmeGuardrailsAssurance({ projectId }: { projectId: string }) {
               {ASSURANCE_LOOKBACK_DAYS} days. A low or dropping bar is the
               real finding, not a bug in this chart.
             </p>
+          </div>
+        )}
+
+        {recentRows.length > 0 && (
+          <div className="mt-4 border-t pt-4">
+            <div className="text-muted-foreground mb-2 text-xs font-semibold tracking-wide uppercase">
+              Recent test cases
+            </div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Time</TableHead>
+                  <TableHead>Note</TableHead>
+                  <TableHead>Result</TableHead>
+                  <TableHead />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {recentRows.map((row) => (
+                  <TableRow key={row.id}>
+                    <TableCell className="font-mono text-xs">
+                      {new Date(row.timestamp).toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground max-w-[320px] truncate text-xs">
+                      {row.comment ?? "—"}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={row.value === 1 ? "success" : "error"}>
+                        {row.value === 1 ? "Blocked" : "Failed open"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {row.traceId ? (
+                        <Link
+                          href={`/project/${projectId}/traces/${row.traceId}`}
+                          className="text-primary text-xs hover:underline"
+                        >
+                          View trace
+                        </Link>
+                      ) : null}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
         )}
       </CardContent>
