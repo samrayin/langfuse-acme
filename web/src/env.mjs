@@ -49,8 +49,9 @@ export const env = createEnv({
     // ACME addition: the in-app ACME AI chat feature
     // (web/src/features/acme-enhancements/server/acmeChatRouter.ts) always
     // calls through RAYIN's own LiteLLM gateway (integrations/litellm) --
-    // never a provider directly. Never exposed to the client — read only
-    // inside the tRPC mutation handler.
+    // never a provider directly (superseded ANTHROPIC_API_KEY, which called
+    // Anthropic directly). Never exposed to the client — read only inside
+    // the tRPC mutation handler.
     //
     // RAYIN_CHAT_LLM_BASE_URL: the gateway's OpenAI-compatible base URL,
     // e.g. http://litellm.rayin-platform:4000/v1 (no trailing path beyond
@@ -62,6 +63,17 @@ export const env = createEnv({
     // RAYIN_CHAT_LLM_MODEL: the LiteLLM model_name alias to call (must be
     // one of that virtual key's allowed models), e.g. "nvidia-nemotron".
     RAYIN_CHAT_LLM_MODEL: z.string().optional(),
+    // ACME addition: in-cluster URL of the rayin-guardrails service (see
+    // https://github.com/samrayin/rayin-guardrails), read only by
+    // acmeGuardrailsRouter.ts. Left unset, the Guardrails dashboard reports
+    // itself as not configured rather than erroring — a customer who
+    // doesn't run this integration is never required to.
+    RAYIN_GUARDRAILS_URL: z.string().optional(),
+    // ACME addition: shared secret for rayin-guardrails -- required on
+    // every endpoint (guard, events, GET+PUT config), not just the write
+    // path. Never exposed to the client. Left unset, every call refuses
+    // to authenticate rather than silently failing.
+    RAYIN_GUARDRAILS_CONFIG_SECRET: z.string().optional(),
     NEXTAUTH_SECRET:
       process.env.NODE_ENV === "production"
         ? z.string().min(1)
@@ -370,13 +382,51 @@ export const env = createEnv({
         "ENCRYPTION_KEY must be 256 bits, 64 string characters in hex format, generate via: openssl rand -hex 32",
       )
       .optional(),
+    LANGFUSE_AI_GATEWAY_SERVICE_KEY: z.string().min(1).optional(),
+    LANGFUSE_AI_GATEWAY_SERVICE_KEY_PREVIOUS: z.string().min(1).optional(),
+    LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST: z
+      .string()
+      .optional()
+      .transform((value) =>
+        value
+          ? value
+              .split(",")
+              .map((organizationId) => organizationId.trim())
+              .filter(Boolean)
+          : [],
+      ),
+    LANGFUSE_AI_GATEWAY_JWT_KEY_ID: z.string().min(1).optional(),
+    LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY: z.string().min(1).optional(),
+    LANGFUSE_AI_GATEWAY_JWT_PUBLIC_KEY: z.string().min(1).optional(),
+    LANGFUSE_AI_GATEWAY_JWT_PREVIOUS_KEY_ID: z.string().min(1).optional(),
+    LANGFUSE_AI_GATEWAY_JWT_PREVIOUS_PUBLIC_KEY: z.string().min(1).optional(),
+    LANGFUSE_AI_GATEWAY_JWT_ISSUER: z
+      .string()
+      .min(1)
+      .default("langfuse-control-plane"),
+    LANGFUSE_AI_GATEWAY_JWT_AUDIENCE: z
+      .string()
+      .min(1)
+      .default("langfuse-ingestion"),
 
     // langfuse caching
     LANGFUSE_CACHE_API_KEY_ENABLED: z.enum(["true", "false"]).default("true"),
     LANGFUSE_CACHE_API_KEY_TTL_SECONDS: z.coerce.number().default(300),
 
+    // The gateway data plane calls /resolve on every LLM request, so the
+    // lookup is cached. The TTL bounds how long a revoked key or a disabled
+    // connection can still be used if explicit invalidation is missed.
+    LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED: z
+      .enum(["true", "false"])
+      .default("true"),
+    LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_TTL_SECONDS: z.coerce
+      .number()
+      .default(60),
+
     // auth migration; self-host and default stay legacy
-    API_AUTH_MIGRATION: z.enum(["legacy", "shadow", "enforce"]).default("legacy"),
+    API_AUTH_MIGRATION: z
+      .enum(["legacy", "shadow", "enforce"])
+      .default("legacy"),
 
     // Multimodal media upload to S3
     LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH: z.coerce
@@ -720,6 +770,8 @@ export const env = createEnv({
     RAYIN_CHAT_LLM_BASE_URL: process.env.RAYIN_CHAT_LLM_BASE_URL,
     RAYIN_CHAT_LLM_API_KEY: process.env.RAYIN_CHAT_LLM_API_KEY,
     RAYIN_CHAT_LLM_MODEL: process.env.RAYIN_CHAT_LLM_MODEL,
+    RAYIN_GUARDRAILS_URL: process.env.RAYIN_GUARDRAILS_URL,
+    RAYIN_GUARDRAILS_CONFIG_SECRET: process.env.RAYIN_GUARDRAILS_CONFIG_SECRET,
     SEED_SECRET_KEY: process.env.SEED_SECRET_KEY,
     NEXT_PUBLIC_DEMO_PROJECT_ID: process.env.NEXT_PUBLIC_DEMO_PROJECT_ID,
     NEXT_PUBLIC_DEMO_ORG_ID: process.env.NEXT_PUBLIC_DEMO_ORG_ID,
@@ -1047,10 +1099,32 @@ export const env = createEnv({
     LANGFUSE_EE_LICENSE_KEY: process.env.LANGFUSE_EE_LICENSE_KEY,
     ADMIN_API_KEY: process.env.ADMIN_API_KEY,
     ENCRYPTION_KEY: process.env.ENCRYPTION_KEY,
+    LANGFUSE_AI_GATEWAY_SERVICE_KEY:
+      process.env.LANGFUSE_AI_GATEWAY_SERVICE_KEY,
+    LANGFUSE_AI_GATEWAY_SERVICE_KEY_PREVIOUS:
+      process.env.LANGFUSE_AI_GATEWAY_SERVICE_KEY_PREVIOUS,
+    LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST:
+      process.env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST,
+    LANGFUSE_AI_GATEWAY_JWT_KEY_ID: process.env.LANGFUSE_AI_GATEWAY_JWT_KEY_ID,
+    LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY:
+      process.env.LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY,
+    LANGFUSE_AI_GATEWAY_JWT_PUBLIC_KEY:
+      process.env.LANGFUSE_AI_GATEWAY_JWT_PUBLIC_KEY,
+    LANGFUSE_AI_GATEWAY_JWT_PREVIOUS_KEY_ID:
+      process.env.LANGFUSE_AI_GATEWAY_JWT_PREVIOUS_KEY_ID,
+    LANGFUSE_AI_GATEWAY_JWT_PREVIOUS_PUBLIC_KEY:
+      process.env.LANGFUSE_AI_GATEWAY_JWT_PREVIOUS_PUBLIC_KEY,
+    LANGFUSE_AI_GATEWAY_JWT_ISSUER: process.env.LANGFUSE_AI_GATEWAY_JWT_ISSUER,
+    LANGFUSE_AI_GATEWAY_JWT_AUDIENCE:
+      process.env.LANGFUSE_AI_GATEWAY_JWT_AUDIENCE,
     // langfuse caching
     LANGFUSE_CACHE_API_KEY_ENABLED: process.env.LANGFUSE_CACHE_API_KEY_ENABLED,
     LANGFUSE_CACHE_API_KEY_TTL_SECONDS:
       process.env.LANGFUSE_CACHE_API_KEY_TTL_SECONDS,
+    LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED:
+      process.env.LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED,
+    LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_TTL_SECONDS:
+      process.env.LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_TTL_SECONDS,
     API_AUTH_MIGRATION: process.env.API_AUTH_MIGRATION,
     LANGFUSE_ALLOWED_ORGANIZATION_CREATORS:
       process.env.LANGFUSE_ALLOWED_ORGANIZATION_CREATORS,

@@ -16,10 +16,16 @@ that point — no need to replay commit history or guess which combination of pa
 was actually deployed. See "Tagging convention" below for what a tag does and does
 not capture.
 
-**Base version:** Langfuse `v4.33.0` (upgraded from `v4.17.0` on 2026-09-10 — see
-"Upgrade to v4.33.0" below), Helm chart `2.0.0` — matches what's live on
-`langfuse-dev.aiatacme.com` (see `Azure Blueprint/ENVIRONMENT-STUDY.md` in the
-companion infrastructure project for the full deployment audit).
+**Base version:** Langfuse `v4.35.0` (upgraded from `v4.33.0` on 2026-09-11 — see
+"Upgrade to v4.35.0" below; that was itself upgraded from `v4.17.0` on
+2026-09-10, see "Upgrade to v4.33.0"), Helm chart `2.0.0` — matches what's live
+on `langfuse-dev.aiatacme.com` (see `Azure Blueprint/ENVIRONMENT-STUDY.md` in
+the companion infrastructure project for the full deployment audit).
+**Note on tag numbering:** existing tags (`acme-v4.33.0.1`, `.2`) were cut
+under the v4.33.0 base and stay as-is — retagging history isn't worth the
+churn. Going forward from this base bump, new tags restart as
+`acme-v4.35.0.1`, `.2`, ... — the number always resets to `.1` on a base
+version bump; see "Versioning" above for what a tag captures.
 
 **Status of this fork as a whole:** **live on `langfuse-dev.aiatacme.com`** as of
 2026-09-10. Both container images (`acmelangfuseacr.azurecr.io/langfuse-web:acme-dev`,
@@ -974,6 +980,65 @@ handing this to a first real customer.
 every time the color preference changes (three redeploys happened today
 alone chasing this), an admin can now change it themselves, live, from
 inside the app.
+
+---
+
+## 2026-09-11 — Upgrade to v4.35.0
+
+**What:** Base Langfuse version bumped from `v4.33.0` to `v4.35.0` (two
+minor releases, 49 upstream commits, 445 files — mostly one large new
+addition, not churn in existing code; see below). Unlike the earlier
+`v4.17.0` → `v4.33.0` jump, this one used a **real `git merge`** against
+upstream's `v4.35.0` tag rather than cherry-picking each ACME commit by
+hand — made possible by that earlier upgrade rebuilding this fork's history
+as a genuine clone of upstream. Verified first that this fork's base commit
+(`81bbfd169`) is byte-identical to upstream's actual `v4.33.0` tag and a
+real ancestor of `main` before trusting the merge.
+
+**Result:** merged with **zero conflicts**. Only two ACME-customized files
+were also touched upstream:
+- `web/src/server/api/root.ts` — upstream added its own new `aiGatewayRouter`
+  registration and changed the `projectsRouter` import to a barrel path;
+  ACME's `acmeAuditLogs`/`acmeChat`/`acmeTheme` router registrations sit at
+  different lines and merged in cleanly alongside it.
+- `web/src/styles/globals.css` — upstream only touched `--dark-red` (an
+  accessibility contrast fix), nowhere near ACME's `--primary`/`--link`/
+  `--ring`/sidebar tokens.
+
+`pnpm-lock.yaml` needed no manual regeneration — upstream's own commits
+already carried their lockfile updates (e.g. `nodemailer` → 9.1.1,
+`csv-parse` 5→7), which merged in automatically; `@anthropic-ai/sdk` and
+every other ACME addition (the stripped `--platform` Dockerfile lines,
+etc.) survived untouched.
+
+**Notable upstream addition, investigated and confirmed irrelevant for now:**
+Langfuse shipped a **native AI Gateway** (`ai-gateway/` — a standalone Rust
+service, plus a "Gateway API Keys" control-plane page) between v4.33.0 and
+v4.35.0. Checked closely given the LiteLLM gateway integration is in
+progress in parallel this quarter:
+- Its own README calls it a **"foundation slice"** — inference paths
+  return 404, nothing routes real model calls yet.
+- Sits behind `restrictedFlags = ["aiGateway"]` — off by default, not
+  something a self-hosted deployment gets automatically.
+- Never touches `routes.tsx` — no diff there between the two versions.
+- **Zero visible or behavioral change to RayIn from this.** Not a
+  competitor to LiteLLM today; worth a passing mention to whoever owns
+  that integration, not a blocker for it.
+
+**Deployment status:** Live. Built via `az acr build` on `bigpool`
+(`langfuse-web:acme-dev` run `dtw`, 16m13s; `langfuse-worker:acme-dev` run
+`dtx`, succeeded) from `main` post-merge, deployed via `kubectl rollout
+restart` on both deployments. `kubectl get pods -n langfuse` shows both
+`1/1 Running`, clean startup logs, "All migrations have been successfully
+applied." Tagged `acme-v4.33.0.2` (last tag under the old base-version
+numbering — see the note under "Base version" above for why new tags
+restart as `acme-v4.35.0.1` going forward).
+
+**Branch note:** merged via a dedicated `upgrade/v4.35.0` branch off `main`
+(not off the in-progress `feat/litellm-gateway-chat-integration` branch),
+build-verified on that branch first (`langfuse-web:upgrade-v4.35.0-test`,
+run `dtv`) before ever touching `main` or the live deployment. The LiteLLM
+branch rebases onto this new `main` separately, in its own session.
 
 ---
 

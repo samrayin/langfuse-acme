@@ -73,6 +73,12 @@ export const projectScopes = [
 
   "projectAuditLogs:read",
 
+  // ACME addition: read access to the Guardrails dashboard (recent
+  // block/redact/allow decisions from rayin-guardrails). Owner/admin only,
+  // same sensitivity level as audit logs -- these events reveal what
+  // content was flagged or blocked, not just that something happened.
+  "projectGuardrails:read",
+
   // ACME addition: use the in-app ACME AI chat widget, which reads this
   // project's own trace data and sends it to an LLM via RAYIN's LiteLLM
   // gateway. Same bar as playground:execute (an action that also invokes
@@ -159,6 +165,7 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "promptExperiments:CUD",
     "promptExperiments:read",
     "projectAuditLogs:read",
+    "projectGuardrails:read",
     "projectAiAssistant:use",
     "dashboards:read",
     "dashboards:CUD",
@@ -217,6 +224,7 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "promptExperiments:CUD",
     "promptExperiments:read",
     "projectAuditLogs:read",
+    "projectGuardrails:read",
     "projectAiAssistant:use",
     "dashboards:read",
     "dashboards:CUD",
