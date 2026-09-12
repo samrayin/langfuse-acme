@@ -8,11 +8,35 @@
 
 model_list:
   # Anthropic — live day one, per "Open decisions" #2 (2026-09-11: only
-  # provider going live at first deploy).
+  # provider going live at first deploy). NOTE (2026-09-12): the underlying
+  # Anthropic account has no billing credit, discovered when promptfoo's
+  # gateway eval surfaced a raw "credit balance is too low" error -- every
+  # call through this model currently 400s. Left live/uncommented rather
+  # than removed, since fixing the account's billing is the real long-term
+  # answer; groq-llama below exists specifically to unblock testing without
+  # waiting on that.
   - model_name: claude-sonnet
     litellm_params:
       model: anthropic/claude-sonnet-5
       api_key: os.environ/ANTHROPIC_API_KEY
+
+  # Groq — added 2026-09-12 to unblock promptfoo eval/red-team testing while
+  # the Anthropic account has no credit (see note above). Free-tier API,
+  # OpenAI-compatible via LiteLLM's groq/ prefix. Not a production provider
+  # decision -- this exists for eval traffic, not customer-facing traffic.
+  - model_name: groq-llama
+    litellm_params:
+      model: groq/llama-3.3-70b-versatile
+      api_key: os.environ/GROQ_API_KEY
+
+  # Google Gemini — added 2026-09-12, same reason as groq-llama above. Having
+  # two working eval providers lets promptfoo's red-team use a different
+  # model as the attacker than the one being tested as the target, which is
+  # a more realistic adversarial setup than a model attacking itself.
+  - model_name: gemini-flash
+    litellm_params:
+      model: gemini/gemini-2.0-flash
+      api_key: os.environ/GEMINI_API_KEY
 
   # OpenAI — configured-but-dormant. Uncomment once this provider is confirmed live.
   # - model_name: gpt-4o

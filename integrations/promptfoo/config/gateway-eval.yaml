@@ -4,14 +4,17 @@ extensions:
   - file://hooks/langfuse-scores.js:langfuseScores
 
 providers:
-  - id: openai:chat:claude-sonnet # LiteLLM model_name alias, not the upstream id
+  - id: openai:chat:groq-llama # LiteLLM model_name alias, not the upstream id
     config:
       apiBaseUrl: http://localhost:4000/v1 # in-cluster: http://litellm.rayin-platform:4000/v1
       apiKeyEnvar: LITELLM_PROMPTFOO_KEY
+      # No temperature override needed -- unlike claude-sonnet (Claude Sonnet
+      # 5 only supports temperature=1), Groq's Llama models accept promptfoo's
+      # default temperature=0, which is better for eval reproducibility anyway.
 
 defaultTest:
   options:
-    provider: openai:chat:claude-sonnet # grade with RAYIN's own model — no OpenAI key exists
+    provider: openai:chat:groq-llama # grade with a model actually reachable today (Anthropic account has no credit)
 
 prompts:
   - |

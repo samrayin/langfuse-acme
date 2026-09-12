@@ -47,8 +47,12 @@ redteam:
     - id: prompt-injection
     - id: base64 # encoding bypass — directly probes exact-string matching
     - id: rot13
+  # Deliberately a DIFFERENT model than the one rayin-guardrails' own rail
+  # engine uses internally (groq-llama, see GUARDRAILS_LLM_MODEL) -- a model
+  # attacking a different model is a more realistic adversarial setup than
+  # a model attacking a copy of itself.
   provider:
-    id: openai:chat:claude-sonnet
+    id: openai:chat:gemini-flash
     config:
       apiBaseUrl: http://localhost:4000/v1
       apiKeyEnvar: LITELLM_PROMPTFOO_KEY
