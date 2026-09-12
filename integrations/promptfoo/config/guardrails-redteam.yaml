@@ -47,12 +47,12 @@ redteam:
     - id: prompt-injection
     - id: base64 # encoding bypass — directly probes exact-string matching
     - id: rot13
-  # Originally scoped as a deliberately different attacker model than the
-  # one rayin-guardrails' own rail engine uses internally, for a more
-  # realistic adversarial setup than a model attacking a copy of itself.
-  # Currently the same model on both sides (nvidia-nemotron) because
-  # groq-llama's model slug isn't valid on this account -- see
-  # litellm-config.yaml's comment. Revisit once that's fixed.
+  # Ideally a deliberately different attacker model than the one
+  # rayin-guardrails' own rail engine uses internally (a model attacking a
+  # copy of itself is a weaker adversarial setup) -- currently the same
+  # model on both sides (nvidia-nemotron) since that's the only working
+  # provider in this dev environment for now. Revisit if/when a second
+  # working provider is added.
   provider:
     id: openai:chat:nvidia-nemotron
     config:

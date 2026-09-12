@@ -7,38 +7,28 @@
 # ../k8s/secret.example.yaml).
 
 model_list:
-  # Anthropic — live day one, per "Open decisions" #2 (2026-09-11: only
-  # provider going live at first deploy). NOTE (2026-09-12): the underlying
-  # Anthropic account has no billing credit, discovered when promptfoo's
-  # gateway eval surfaced a raw "credit balance is too low" error -- every
-  # call through this model currently 400s. Left live/uncommented rather
-  # than removed, since fixing the account's billing is the real long-term
-  # answer; groq-llama below exists specifically to unblock testing without
-  # waiting on that.
+  # Anthropic — originally "live day one" per "Open decisions" #2
+  # (2026-09-11), but the underlying account has no billing credit
+  # (discovered 2026-09-12 when promptfoo's gateway eval surfaced a raw
+  # "credit balance is too low" error -- every call through this model
+  # 400s). Left in the model list (harmless, LiteLLM just reports it
+  # unhealthy) since fixing the account's billing is the real long-term
+  # answer, but nothing in this deployment should target it right now --
+  # see nvidia-nemotron below, the actual live default for dev.
   - model_name: claude-sonnet
     litellm_params:
       model: anthropic/claude-sonnet-5
       api_key: os.environ/ANTHROPIC_API_KEY
 
-  # Groq — added 2026-09-12 to unblock promptfoo eval/red-team testing while
-  # the Anthropic account has no credit (see note above). NOT currently
-  # working: /health reports "model llama-3.3-70b-versatile does not exist
-  # or you do not have access to it" -- Groq's available model list has
-  # apparently moved on from this slug. Left in place (harmless -- LiteLLM
-  # just reports it unhealthy) rather than removed, since fixing the model
-  # name is a quick follow-up, not a blocker; nvidia-nemotron below is the
-  # actual working second provider for now.
-  - model_name: groq-llama
-    litellm_params:
-      model: groq/llama-3.3-70b-versatile
-      api_key: os.environ/GROQ_API_KEY
-
-  # OpenRouter (NVIDIA Nemotron 3 Ultra, free tier) — added 2026-09-12,
-  # replaces an originally-planned direct Gemini entry (key was never
-  # actually generated). Same reason as groq-llama above: having two
-  # working eval providers lets promptfoo's red-team use a different model
-  # as the attacker than the one being tested as the target, which is a
-  # more realistic adversarial setup than a model attacking itself.
+  # OpenRouter (NVIDIA Nemotron 3 Ultra, free tier) — added 2026-09-12 to
+  # unblock promptfoo eval/red-team testing while the Anthropic account has
+  # no credit (see note above). This is the model every dev-environment
+  # consumer (chat, promptfoo, rayin-guardrails' own rail engine) should
+  # actually target for now -- not a permanent provider decision, just what
+  # works today without a billing fix. (A Groq entry was tried and removed
+  # 2026-09-12: the model slug this account had access to no longer exists
+  # on Groq's current lineup, and nvidia-nemotron alone was sufficient to
+  # unblock testing, so it wasn't worth chasing a second working provider.)
   - model_name: nvidia-nemotron
     litellm_params:
       model: openrouter/nvidia/nemotron-3-ultra-550b-a55b:free
@@ -78,12 +68,19 @@ litellm_settings:
 # drift). Created via the LiteLLM Admin UI or API after the proxy is up,
 # e.g.:
 #
-#   curl -X POST http://litellm.rayin-platform:4000/key/generate \
-#     -H "Authorization: Bearer $LITELLM_MASTER_KEY" \
-#     -H "Content-Type: application/json" \
-#     -d '{"key_alias": "chat-widget", "max_budget": 50, "models": ["claude-sonnet"]}'
+# NOTE (2026-09-12): both starter keys are scoped to nvidia-nemotron, not
+# claude-sonnet -- this dev environment's Anthropic account has no billing
+# credit, so RAYIN_CHAT_LLM_MODEL and rayin-guardrails' GUARDRAILS_LLM_MODEL
+# should both target nvidia-nemotron for now. Revisit once Anthropic
+# billing is sorted or a real production provider decision is made --
+# this is a dev-environment workaround, not the intended long-term model.
 #
 #   curl -X POST http://litellm.rayin-platform:4000/key/generate \
 #     -H "Authorization: Bearer $LITELLM_MASTER_KEY" \
 #     -H "Content-Type: application/json" \
-#     -d '{"key_alias": "rayin-guardrails", "max_budget": 50, "models": ["claude-sonnet"]}'
+#     -d '{"key_alias": "chat-widget", "max_budget": 50, "models": ["nvidia-nemotron"]}'
+#
+#   curl -X POST http://litellm.rayin-platform:4000/key/generate \
+#     -H "Authorization: Bearer $LITELLM_MASTER_KEY" \
+#     -H "Content-Type: application/json" \
+#     -d '{"key_alias": "rayin-guardrails", "max_budget": 50, "models": ["nvidia-nemotron"]}'

@@ -10,8 +10,9 @@ providers:
       apiKeyEnvar: LITELLM_PROMPTFOO_KEY
       # No temperature override needed here (unlike claude-sonnet, which only
       # supports temperature=1) -- confirmed working via OpenRouter's free
-      # tier while both claude-sonnet (no credit) and groq-llama (model slug
-      # no longer valid on this account) are unhealthy.
+      # tier while claude-sonnet is unhealthy (no billing credit). This is
+      # the dev-environment default for now -- not a permanent provider
+      # decision.
 
 defaultTest:
   options:

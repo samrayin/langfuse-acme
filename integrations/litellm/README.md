@@ -115,6 +115,17 @@ second opinion.
    [`config/litellm-config.yaml`](config/litellm-config.yaml), omitted from
    the secret) — flip on later by uncommenting and adding the key, no
    redeploy of anything else required.
+
+   **Update, 2026-09-12: this account has no billing credit** — every call
+   through `claude-sonnet` 400s (`credit balance is too low`). For this dev
+   environment, `nvidia-nemotron` (OpenRouter, free tier) is the actual
+   working model, and every consumer -- chat, `rayin-guardrails`' rail
+   engine, promptfoo -- should target it via `RAYIN_CHAT_LLM_MODEL` /
+   `GUARDRAILS_LLM_MODEL` until Anthropic billing is resolved or a real
+   production provider decision is made. A Groq entry was tried as a second
+   working provider and removed the same day (the account's available model
+   slug no longer exists on Groq's current lineup) — not worth chasing
+   further since `nvidia-nemotron` alone unblocks testing.
 3. **Budget: $50 per virtual key — confirmed 2026-09-12.** Per-key, not a
    shared total; each new key gets its own $50 cap. Applied live to both
    starter keys (`chat-widget`, `rayin-guardrails`) via `/key/update`, not
@@ -137,8 +148,10 @@ kubectl apply -f k8s/namespace.yaml
 ### 2. Config
 
 [`config/litellm-config.yaml`](config/litellm-config.yaml) already reflects
-the resolved decisions above — Anthropic live, OpenAI/Azure OpenAI dormant,
-$10 budget on the starter keys.
+the resolved decisions above — `nvidia-nemotron` is the live default for
+every dev-environment consumer (Anthropic is configured but unhealthy, no
+billing credit; Groq was tried and dropped), OpenAI/Azure OpenAI stay
+dormant, $50 budget on the starter keys.
 
 ### 3. Secrets
 
